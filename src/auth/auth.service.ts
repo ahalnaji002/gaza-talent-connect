@@ -1,4 +1,3 @@
-
 import {
   ConflictException,
   Injectable,
@@ -19,12 +18,13 @@ export class AuthService {
   ) {}
 
   async register(dto: RegisterDto) {
+    const email = dto.email.toLowerCase();
     const passwordHash = await bcrypt.hash(dto.password, 12);
 
     try {
       const user = await this.prisma.user.create({
         data: {
-          email: dto.email,
+          email,
           passwordHash,
           profile: {
             create: {
@@ -60,8 +60,9 @@ export class AuthService {
   }
 
   async login(dto: LoginDto) {
+    const email = dto.email.toLowerCase();
     const user = await this.prisma.user.findUnique({
-      where: { email: dto.email },
+      where: { email },
       select: {
         id: true,
         passwordHash: true,

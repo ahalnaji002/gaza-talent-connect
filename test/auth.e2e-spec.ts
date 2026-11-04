@@ -189,7 +189,169 @@ describe('Authentication (e2e)', () => {
 
     expect(response.body.passwordHash).toBeUndefined();
     expect(response.body.password).toBeUndefined();
+  });
 
+  it('normalizes email to lowercase during registration', async () => {
+    const email = `e2e-${randomUUID()}@example.com`;
+    const mixedCaseEmail = email.toUpperCase();
+
+    createdUserEmails.add(email);
+
+    const response = await request(app.getHttpServer())
+      .post('/api/auth/register')
+      .send({
+        email: mixedCaseEmail,
+        password: 'Student123!',
+        fullName: 'Email Normalization Student',
+      })
+      .expect(201);
+
+    expect(response.body.email).toBe(email);
+
+    const storedUser = await prisma.user.findUnique({
+      where: { email },
+      select: { id: true, email: true },
+    });
+
+    expect(storedUser).not.toBeNull();
+    expect(storedUser?.email).toBe(email);
+  });
+
+  it('allows login with uppercase email', async () => {
+    const email = `e2e-${randomUUID()}@example.com`;
+    const password = 'Student123!';
+
+    createdUserEmails.add(email);
+
+    await request(app.getHttpServer())
+      .post('/api/auth/register')
+      .send({
+        email,
+        password,
+        fullName: 'Case Insensitive Login Student',
+      })
+      .expect(201);
+
+    const response = await request(app.getHttpServer())
+      .post('/api/auth/login')
+      .send({
+        email: email.toUpperCase(),
+        password,
+      })
+      .expect(200);
+
+    expect(response.body.accessToken).toEqual(expect.any(String));
+    expect(response.body.tokenType).toBe('Bearer');
+  });
+
+  it('rejects duplicate registration regardless of email case', async () => {
+    const email = `e2e-${randomUUID()}@example.com`;
+    createdUserEmails.add(email);
+
+    await request(app.getHttpServer())
+      .post('/api/auth/register')
+      .send({
+        email,
+        password: 'Student123!',
+        fullName: 'First Student',
+      })
+      .expect(201);
+
+    const response = await request(app.getHttpServer())
+      .post('/api/auth/register')
+      .send({
+        email: email.toUpperCase(),
+        password: 'Another123!',
+        fullName: 'Second Student',
+      })
+      .expect(409);
+
+    expect(response.body.message).toBe('Email is already registered');
+
+    const count = await prisma.user.count({
+      where: { email },
+    });
+
+    expect(count).toBe(1);
+  });
+
+  it('rejects login passwords exceeding 72 UTF-8 bytes', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/api/auth/login')
+      .send({
+        email: `e2e-unknown-${randomUUID()}@example.com`,
+        password: 'a'.repeat(73),
+      })
+      .expect(400);
+
+    expect(response.body.statusCode).toBe(400);
+    expect(response.body.message).toContain(
+      'password must not exceed 72 UTF-8 bytes',
+    );
+  });
+
+  it('accepts a password of exactly 72 UTF-8 bytes during registration', async () => {
+    const email = `e2e-${randomUUID()}@example.com`;
+    const password = 'Student1' + 'a'.repeat(64);
+
+    expect(Buffer.byteLength(password, 'utf8')).toBe(72);
+    createdUserEmails.add(email);
+
+    const response = await request(app.getHttpServer())
+      .post('/api/auth/register')
+      .send({
+        email,
+        password,
+        fullName: 'Password Boundary Student',
+      })
+      .expect(201);
+
+    expect(response.body.email).toBe(email);
+  });
+
+  it('rejects a multibyte password exceeding 72 UTF-8 bytes', async () => {
+    const password = 'Student1' + 'é'.repeat(33);
+
+    expect(password.length).toBe(41);
+    expect(Buffer.byteLength(password, 'utf8')).toBe(74);
+
+    const response = await request(app.getHttpServer())
+      .post('/api/auth/login')
+      .send({
+        email: `e2e-unknown-${randomUUID()}@example.com`,
+        password,
+      })
+      .expect(400);
+
+    expect(response.body.message).toContain(
+      'password must not exceed 72 UTF-8 bytes',
+    );
+  });
+
+  it('rejects registration passwords exceeding 72 UTF-8 bytes', async () => {
+    const email = `e2e-${randomUUID()}@example.com`;
+    const password = 'Student1' + 'a'.repeat(65);
+
+    expect(Buffer.byteLength(password, 'utf8')).toBe(73);
+
+    const response = await request(app.getHttpServer())
+      .post('/api/auth/register')
+      .send({
+        email,
+        password,
+        fullName: 'Invalid Password Student',
+      })
+      .expect(400);
+
+    expect(response.body.message).toContain(
+      'password must not exceed 72 UTF-8 bytes',
+    );
+
+    const user = await prisma.user.findUnique({
+      where: { email },
+    });
+
+    expect(user).toBeNull();
   });
 
   afterAll(async () => {

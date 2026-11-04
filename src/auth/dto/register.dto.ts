@@ -5,20 +5,8 @@ import {
   MaxLength,
   MinLength,
   Validate,
-  ValidatorConstraint,
-  ValidatorConstraintInterface,
 } from 'class-validator';
-
-@ValidatorConstraint({ name: 'PasswordByteLength', async: false })
-class PasswordByteLength implements ValidatorConstraintInterface {
-  validate(value: unknown): boolean {
-    return typeof value === 'string' && Buffer.byteLength(value, 'utf8') <= 72;
-  }
-
-  defaultMessage(): string {
-    return 'password must not exceed 72 UTF-8 bytes';
-  }
-}
+import { PasswordByteLength } from '../validators/password-byte-length.validator';
 
 export class RegisterDto {
   @IsEmail()

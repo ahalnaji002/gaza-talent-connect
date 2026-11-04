@@ -1,5 +1,5 @@
-
-import { IsEmail, IsString, MaxLength } from 'class-validator';
+import { IsEmail, IsString, MaxLength, Validate } from 'class-validator';
+import { PasswordByteLength } from '../validators/password-byte-length.validator';
 
 export class LoginDto {
   @IsEmail()
@@ -7,5 +7,6 @@ export class LoginDto {
   email!: string;
 
   @IsString()
+  @Validate(PasswordByteLength)
   password!: string;
 }

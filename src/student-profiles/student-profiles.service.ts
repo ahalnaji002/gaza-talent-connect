@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { isEmail } from 'class-validator';
 import { PrismaService } from '../prisma/prisma.service';
+import { DiscoverStudentsQueryDto } from './dto/discover-students-query.dto';
 import { ReplaceStudentSkillsDto } from './dto/replace-student-skills.dto';
 import { UpdateStudentProfileDto } from './dto/update-student-profile.dto';
 
@@ -41,6 +42,55 @@ type SelectedProfile = {
   skills: Array<{ skill: { id: string; name: string } }>;
 };
 
+const publicProfileSelect = {
+  id: true,
+  fullName: true,
+  bio: true,
+  location: true,
+  contactEmail: true,
+  githubUrl: true,
+  portfolioUrl: true,
+  isPublic: true,
+  skills: {
+    select: {
+      skill: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+    },
+  },
+} as const;
+
+const publicProfileDetailSelect = {
+  ...publicProfileSelect,
+  projects: {
+    select: {
+      id: true,
+      title: true,
+      description: true,
+      githubUrl: true,
+      demoUrl: true,
+      createdAt: true,
+      updatedAt: true,
+    },
+    orderBy: { createdAt: 'desc' },
+  },
+} as const;
+
+type PublicProfile = {
+  id: string;
+  fullName: string;
+  bio: string | null;
+  location: string | null;
+  contactEmail: string | null;
+  githubUrl: string | null;
+  portfolioUrl: string | null;
+  isPublic: boolean;
+  skills: Array<{ skill: { id: string; name: string } }>;
+};
+
 @Injectable()
 export class StudentProfilesService {
   constructor(private readonly prisma: PrismaService) {}
@@ -56,6 +106,79 @@ export class StudentProfilesService {
     }
 
     return this.toResponse(profile);
+  }
+
+  async discover(query: DiscoverStudentsQueryDto) {
+    const skillIds = [...new Set(query.skillIds ?? [])];
+    const profiles = await this.prisma.studentProfile.findMany({
+      where: {
+        isPublic: true,
+        contactEmail: { not: null },
+        ...(skillIds.length > 0
+          ? { skills: { some: { skillId: { in: skillIds } } } }
+          : {}),
+      },
+      select: publicProfileSelect,
+      orderBy: [{ fullName: 'asc' }, { id: 'asc' }],
+    });
+
+    const validProfiles = profiles.filter(
+      (profile) =>
+        profile.contactEmail !== null && isEmail(profile.contactEmail),
+    );
+    const skillIdSet = new Set(skillIds);
+    const rankedProfiles =
+      skillIds.length === 0
+        ? validProfiles
+        : validProfiles.sort((left, right) => {
+            const leftMatches = left.skills.filter(({ skill }) =>
+              skillIdSet.has(skill.id),
+            ).length;
+            const rightMatches = right.skills.filter(({ skill }) =>
+              skillIdSet.has(skill.id),
+            ).length;
+            return rightMatches - leftMatches;
+          });
+
+    const total = rankedProfiles.length;
+    const offset = (query.page - 1) * query.limit;
+    const data = rankedProfiles
+      .slice(offset, offset + query.limit)
+      .map((profile) => this.toPublicProfile(profile));
+
+    return {
+      data,
+      meta: {
+        page: query.page,
+        limit: query.limit,
+        total,
+        totalPages: Math.ceil(total / query.limit),
+      },
+    };
+  }
+
+  async getPublicProfileById(profileId: string) {
+    const profile = await this.prisma.studentProfile.findFirst({
+      where: {
+        id: profileId,
+        isPublic: true,
+        contactEmail: { not: null },
+      },
+      select: publicProfileDetailSelect,
+    });
+
+    if (
+      !profile ||
+      profile.contactEmail === null ||
+      !isEmail(profile.contactEmail)
+    ) {
+      throw new NotFoundException('Student profile not found');
+    }
+
+    return {
+      ...this.toPublicProfile(profile),
+      projects: profile.projects,
+    };
   }
 
   async updateByUserId(userId: string, dto: UpdateStudentProfileDto) {
@@ -181,6 +304,20 @@ export class StudentProfilesService {
   }
 
   private toResponse(profile: SelectedProfile) {
+    return {
+      id: profile.id,
+      fullName: profile.fullName,
+      bio: profile.bio,
+      location: profile.location,
+      contactEmail: profile.contactEmail,
+      githubUrl: profile.githubUrl,
+      portfolioUrl: profile.portfolioUrl,
+      isPublic: profile.isPublic,
+      skills: profile.skills.map(({ skill }) => skill),
+    };
+  }
+
+  private toPublicProfile(profile: PublicProfile) {
     return {
       id: profile.id,
       fullName: profile.fullName,

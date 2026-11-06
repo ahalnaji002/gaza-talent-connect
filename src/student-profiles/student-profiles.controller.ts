@@ -4,11 +4,15 @@ import {
   Get,
   Patch,
   Put,
+  Param,
+  ParseUUIDPipe,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
 import { Request } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { DiscoverStudentsQueryDto } from './dto/discover-students-query.dto';
 import { ReplaceStudentSkillsDto } from './dto/replace-student-skills.dto';
 import { UpdateStudentProfileDto } from './dto/update-student-profile.dto';
 import { StudentProfilesService } from './student-profiles.service';
@@ -21,7 +25,14 @@ interface AuthenticatedRequest extends Request {
 
 @Controller('students')
 export class StudentProfilesController {
-  constructor(private readonly studentProfilesService: StudentProfilesService) {}
+  constructor(
+    private readonly studentProfilesService: StudentProfilesService,
+  ) {}
+
+  @Get()
+  discover(@Query() query: DiscoverStudentsQueryDto) {
+    return this.studentProfilesService.discover(query);
+  }
 
   @Get('me')
   @UseGuards(JwtAuthGuard)
@@ -35,10 +46,7 @@ export class StudentProfilesController {
     @Req() request: AuthenticatedRequest,
     @Body() dto: UpdateStudentProfileDto,
   ) {
-    return this.studentProfilesService.updateByUserId(
-      request.user.userId,
-      dto,
-    );
+    return this.studentProfilesService.updateByUserId(request.user.userId, dto);
   }
 
   @Put('me/skills')
@@ -51,5 +59,10 @@ export class StudentProfilesController {
       request.user.userId,
       dto,
     );
+  }
+
+  @Get(':id')
+  getPublicProfile(@Param('id', new ParseUUIDPipe()) id: string) {
+    return this.studentProfilesService.getPublicProfileById(id);
   }
 }

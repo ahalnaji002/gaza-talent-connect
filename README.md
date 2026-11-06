@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Gaza Talent Connect is a backend API built with NestJS, TypeScript, PostgreSQL, and Prisma. The currently implemented endpoints support student registration, JWT login, authenticated profile and skill management, and authenticated project CRUD. Public Talent Discovery is planned for Task 06 and is not implemented yet.
+Gaza Talent Connect is a backend API built with NestJS, TypeScript, PostgreSQL, and Prisma. The currently implemented endpoints support student registration, JWT login, authenticated profile, skill, and project management, and public discovery of published student profiles. Company accounts and messaging are outside the current scope.
 
 ## Features
 
@@ -11,9 +11,10 @@ Gaza Talent Connect is a backend API built with NestJS, TypeScript, PostgreSQL, 
 - Replace the authenticated student's selected skills from the predefined catalog.
 - Create, list, update, and delete the authenticated student's projects.
 - Public read-only catalog of predefined skills.
+- Public discovery of published student profiles by skills.
+- Public details for published profiles, including their skills and projects.
 - Profiles are hidden by default. Publishing requires a valid contact email; the private account email is not returned by profile routes.
 - Profile skills are returned as `{ id, name }` objects.
-- Public Talent Discovery is planned for Task 06; no public student directory endpoint is available yet.
 
 ### Read your profile
 
@@ -80,6 +81,17 @@ Authorization: Bearer <accessToken>
 ```
 
 Create a project with a required `title` (3–150 characters) and optional `description` (up to 2,000 characters), `githubUrl` (HTTPS), and `demoUrl` (HTTP or HTTPS). URL values are limited to 2,048 characters by the database fields. `POST` returns `201` with the project; `GET` returns the authenticated student's projects newest first; `PATCH` accepts partial updates and returns `200`; `DELETE` returns `204` with no body. Nullable fields `description`, `githubUrl`, and `demoUrl` can be set to `null` in `PATCH` to clear them. Missing or non-owned project IDs return `404`; invalid input and malformed UUIDs return `400`; missing or invalid JWT returns `401`.
+
+### Discover public students
+
+```http
+GET /api/students?skillIds=<uuid>,<uuid>&page=1&limit=10
+GET /api/students/<profile-id>
+```
+
+These routes are public and do not require a JWT. The list endpoint matches a profile when it has **any** requested skill, ranks profiles by matching-skill count descending, then `fullName` and profile `id`, and paginates after ranking. Without `skillIds`, it lists all eligible profiles ordered by `fullName` and `id`. `page` defaults to `1`; `limit` defaults to `10` and accepts `1–50`.
+
+The list response is `{ "data": [...], "meta": { "page", "limit", "total", "totalPages" } }`. Each item contains `id`, `fullName`, `bio`, `location`, `contactEmail`, `githubUrl`, `portfolioUrl`, `isPublic`, and `skills` (`{ id, name }`). Public detail uses the student profile ID and adds `projects` (`id`, `title`, `description`, `githubUrl`, `demoUrl`, `createdAt`, `updatedAt`). Only profiles with `isPublic: true` and a valid `contactEmail` are returned. Account email and password data are never exposed. Hidden or nonexistent profile details return `404`; malformed IDs, skill UUIDs, or pagination values return `400`.
 
 ## Setup
 

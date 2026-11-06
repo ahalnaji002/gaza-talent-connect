@@ -2,13 +2,14 @@
 
 ## Project Overview
 
-Gaza Talent Connect is a backend API built with NestJS, TypeScript, PostgreSQL, and Prisma. The currently implemented endpoints support student registration, JWT login, and authenticated reading and updating of each student's own profile and selected skills. Public Talent Discovery is planned for Task 06 and is not implemented yet.
+Gaza Talent Connect is a backend API built with NestJS, TypeScript, PostgreSQL, and Prisma. The currently implemented endpoints support student registration, JWT login, authenticated profile and skill management, and authenticated project CRUD. Public Talent Discovery is planned for Task 06 and is not implemented yet.
 
 ## Features
 
 - Student registration and JWT login.
 - Read and update the authenticated student's own profile.
 - Replace the authenticated student's selected skills from the predefined catalog.
+- Create, list, update, and delete the authenticated student's projects.
 - Public read-only catalog of predefined skills.
 - Profiles are hidden by default. Publishing requires a valid contact email; the private account email is not returned by profile routes.
 - Profile skills are returned as `{ id, name }` objects.
@@ -65,6 +66,20 @@ Content-Type: application/json
 ```
 
 Send `{ "skillIds": ["uuid-1", "uuid-2"] }` to replace the complete skill list for the authenticated student's profile. The array accepts 0–20 distinct UUIDs that exist in the catalog; send `[]` to clear all assigned skills. A successful request returns `200` with the resulting array of `{ id, name }` skills. Missing or invalid JWT returns `401`; a missing student profile returns `404`; invalid input or unknown skill IDs returns `400`. The operation is atomic, and students cannot modify the shared catalog.
+
+### Manage your projects
+
+All project routes require a JWT. A project is assigned to the authenticated student's profile; clients cannot choose or change its owner.
+
+```http
+POST /api/projects
+GET /api/projects/me
+PATCH /api/projects/<project-id>
+DELETE /api/projects/<project-id>
+Authorization: Bearer <accessToken>
+```
+
+Create a project with a required `title` (3–150 characters) and optional `description` (up to 2,000 characters), `githubUrl` (HTTPS), and `demoUrl` (HTTP or HTTPS). URL values are limited to 2,048 characters by the database fields. `POST` returns `201` with the project; `GET` returns the authenticated student's projects newest first; `PATCH` accepts partial updates and returns `200`; `DELETE` returns `204` with no body. Nullable fields `description`, `githubUrl`, and `demoUrl` can be set to `null` in `PATCH` to clear them. Missing or non-owned project IDs return `404`; invalid input and malformed UUIDs return `400`; missing or invalid JWT returns `401`.
 
 ## Setup
 

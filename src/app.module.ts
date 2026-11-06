@@ -5,6 +5,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { ConfigModule } from '@nestjs/config';
 import { AuthModule } from './auth/auth.module';
 import { StudentProfilesModule } from './student-profiles/student-profiles.module';
+import { SkillsModule } from './skills/skills.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { StudentProfilesModule } from './student-profiles/student-profiles.modul
     PrismaModule,
     AuthModule,
     StudentProfilesModule,
+    SkillsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

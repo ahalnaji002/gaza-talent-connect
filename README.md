@@ -8,8 +8,10 @@ Gaza Talent Connect is a backend API built with NestJS, TypeScript, PostgreSQL, 
 
 - Student registration and JWT login.
 - Read and update the authenticated student's own profile.
+- Public read-only catalog of predefined skills.
 - Profiles are hidden by default. Publishing requires a valid contact email; the private account email is not returned by profile routes.
 - Profile skills are returned as `{ id, name }` objects.
+- Replacing a student's skills with `PUT /api/students/me/skills` is not implemented yet.
 - Public Talent Discovery is planned for Task 06; no public student directory endpoint is available yet.
 
 ### Read your profile
@@ -46,6 +48,14 @@ Example request:
 
 Successful updates return `200` with the same profile shape as `GET /api/students/me`. Requests without a valid JWT return `401`; a missing profile returns `404`; invalid fields or publication state return `400`.
 
+### List predefined skills
+
+```http
+GET /api/skills
+```
+
+This public endpoint does not require a JWT. It returns `200` with a direct array of `{ id, name }` objects ordered by `name` and then `id`; it returns `[]` when the catalog is empty. The API does not create, update, or delete catalog skills.
+
 ## Setup
 
 Install dependencies:
@@ -55,6 +65,18 @@ npm install
 ```
 
 Configure `DATABASE_URL` with the PostgreSQL connection string and `JWT_SECRET` with a private signing secret in the runtime environment. Ensure the database schema has been set up before starting the API.
+
+The initial skill catalog is installed manually; application startup and `GET /api/skills` never run the seed. Verify that `DATABASE_URL` targets the database you intend to seed, then set the confirmation to that database's exact name. For example, for the isolated test database:
+
+```powershell
+$env:SKILLS_SEED_CONFIRM_DATABASE = "gaza_talent_connect_test"
+npm run db:seed
+Remove-Item Env:SKILLS_SEED_CONFIRM_DATABASE
+```
+
+The seed checks PostgreSQL's actual `current_database()` against `SKILLS_SEED_CONFIRM_DATABASE` and aborts before inserting if they differ. Do not confirm a development or production database without separate approval. The seed is repeatable and does not delete skills or student-skill links.
+
+Initial catalog: JavaScript, TypeScript, Python, Java, C++, React, Next.js, Node.js, NestJS, PostgreSQL, MySQL, HTML, CSS, Git, Docker.
 
 Start the API:
 
@@ -72,7 +94,7 @@ The API listens on port `3000` by default and uses the `/api` prefix.
 - `class-validator` and `class-transformer`
 - Jest and Supertest for tests
 
-No dependency was added for the profile update endpoint.
+No dependency was added for the profile or skills catalog endpoints.
 
 ## Tests
 

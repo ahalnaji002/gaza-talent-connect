@@ -105,6 +105,71 @@ describe('Student profiles (e2e)', () => {
     };
   }
 
+  async function waitForProfileLockWaiters(
+    blockerPid: number,
+    minimum: number,
+  ) {
+    const deadline = Date.now() + 10_000;
+
+    while (Date.now() < deadline) {
+      const result = await prisma.$queryRaw<
+        Array<{
+          waiter_pid: number;
+          wait_event: string | null;
+          database_name: string;
+          blocking_chain: number[];
+        }>
+      >`WITH RECURSIVE profile_lock_waiters AS (
+          SELECT pid, current_database() AS database_name, wait_event, query
+          FROM pg_stat_activity
+          WHERE datname = current_database()
+            AND pid <> pg_backend_pid()
+            AND wait_event_type = 'Lock'
+            AND state = 'active'
+            AND query ILIKE '%FROM student_profiles%'
+            AND query ILIKE '%FOR UPDATE%'
+        ), blocking_chain(waiter_pid, blocking_pid, path) AS (
+          SELECT pid, pid, ARRAY[pid]::int[]
+          FROM profile_lock_waiters
+          UNION ALL
+          SELECT chain.waiter_pid,
+                 blocker.pid,
+                 chain.path || blocker.pid
+          FROM blocking_chain AS chain
+          CROSS JOIN LATERAL unnest(
+            pg_blocking_pids(chain.blocking_pid)
+          ) AS blocker(pid)
+          WHERE chain.blocking_pid <> ${blockerPid}::int
+            AND NOT blocker.pid = ANY(chain.path)
+            AND cardinality(chain.path) < 8
+        )
+        SELECT waiter.pid AS waiter_pid,
+               waiter.wait_event,
+               waiter.database_name,
+               chain.path AS blocking_chain
+        FROM profile_lock_waiters AS waiter
+        JOIN blocking_chain AS chain ON chain.waiter_pid = waiter.pid
+        WHERE chain.blocking_pid = ${blockerPid}::int
+        ORDER BY waiter.pid`;
+
+      if (
+        result.some(
+          (waiter) => waiter.database_name !== 'gaza_talent_connect_test',
+        )
+      ) {
+        throw new Error('Lock waiter is connected to an unexpected database');
+      }
+
+      if (result.length >= minimum) {
+        return result;
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+
+    return [];
+  }
+
   it('rejects requests without a JWT', async () => {
     await request(app.getHttpServer()).get('/api/students/me').expect(401);
   });
@@ -138,7 +203,9 @@ describe('Student profiles (e2e)', () => {
       githubUrl: null,
       portfolioUrl: null,
       isPublic: false,
-      skills: [{ id: ownerSkillId, name: expect.stringMatching(/^e2e-skill-/) }],
+      skills: [
+        { id: ownerSkillId, name: expect.stringMatching(/^e2e-skill-/) },
+      ],
     });
   });
 
@@ -186,6 +253,333 @@ describe('Student profiles (e2e)', () => {
     expect(response.body.userId).toBeUndefined();
   });
 
+  it('rejects profile updates without a JWT', async () => {
+    await request(app.getHttpServer())
+      .patch('/api/students/me')
+      .send({ bio: 'unauthorized update' })
+      .expect(401);
+  });
+
+  it('updates the authenticated profile and returns the approved shape', async () => {
+    const response = await request(app.getHttpServer())
+      .patch('/api/students/me')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({
+        fullName: 'Updated Owner',
+        bio: 'Backend developer',
+        location: 'Gaza',
+        contactEmail: 'owner.contact@example.com',
+        githubUrl: 'https://github.com/owner',
+        portfolioUrl: 'http://owner.example.com',
+        isPublic: false,
+      })
+      .expect(200);
+
+    expect(response.body).toEqual({
+      id: ownerProfileId,
+      fullName: 'Updated Owner',
+      bio: 'Backend developer',
+      location: 'Gaza',
+      contactEmail: 'owner.contact@example.com',
+      githubUrl: 'https://github.com/owner',
+      portfolioUrl: 'http://owner.example.com',
+      isPublic: false,
+      skills: [
+        { id: ownerSkillId, name: expect.stringMatching(/^e2e-skill-/) },
+      ],
+    });
+    expect(JSON.stringify(response.body)).not.toContain(ownerEmail);
+    expect(response.body.userId).toBeUndefined();
+    expect(response.body.passwordHash).toBeUndefined();
+  });
+
+  it('updates only the profile belonging to the authenticated user', async () => {
+    await request(app.getHttpServer())
+      .patch('/api/students/me')
+      .set('Authorization', `Bearer ${secondStudentToken}`)
+      .send({ fullName: 'Updated Second Student' })
+      .expect(200);
+
+    const ownerResponse = await request(app.getHttpServer())
+      .get('/api/students/me')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .expect(200);
+    const secondStudentResponse = await request(app.getHttpServer())
+      .get('/api/students/me')
+      .set('Authorization', `Bearer ${secondStudentToken}`)
+      .expect(200);
+
+    expect(ownerResponse.body.fullName).toBe('Updated Owner');
+    expect(secondStudentResponse.body.fullName).toBe('Updated Second Student');
+  });
+
+  it('rejects fields outside the profile update contract', async () => {
+    await request(app.getHttpServer())
+      .patch('/api/students/me')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({
+        fullName: 'Must Not Be Applied',
+        id: 'attacker-id',
+        userId: 'attacker-user-id',
+        skills: [],
+        email: 'attacker@example.com',
+      })
+      .expect(400);
+
+    const response = await request(app.getHttpServer())
+      .get('/api/students/me')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .expect(200);
+    expect(response.body.fullName).toBe('Updated Owner');
+  });
+
+  it('accepts the approved maximum profile field lengths', async () => {
+    const fullName = 'N'.repeat(150);
+    const bio = 'b'.repeat(1000);
+    const location = 'l'.repeat(150);
+
+    const response = await request(app.getHttpServer())
+      .patch('/api/students/me')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({ fullName, bio, location })
+      .expect(200);
+
+    expect(response.body.fullName).toHaveLength(150);
+    expect(response.body.bio).toHaveLength(1000);
+    expect(response.body.location).toHaveLength(150);
+
+    const minimumName = await request(app.getHttpServer())
+      .patch('/api/students/me')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({ fullName: 'AB' })
+      .expect(200);
+    expect(minimumName.body.fullName).toBe('AB');
+  });
+
+  it('rejects invalid profile values and values beyond approved limits', async () => {
+    const invalidPayloads: Array<Record<string, unknown>> = [
+      { fullName: null },
+      { fullName: 'A' },
+      { fullName: 'N'.repeat(151) },
+      { bio: 'b'.repeat(1001) },
+      { location: 'l'.repeat(151) },
+      { contactEmail: 'not-an-email' },
+      { contactEmail: 'x'.repeat(256) },
+      { githubUrl: 'http://github.com/owner' },
+      { githubUrl: `https://github.com/${'a'.repeat(2049)}` },
+      { portfolioUrl: 'ftp://owner.example.com' },
+      { portfolioUrl: `https://example.com/${'a'.repeat(2049)}` },
+      { isPublic: null },
+    ];
+
+    for (const payload of invalidPayloads) {
+      await request(app.getHttpServer())
+        .patch('/api/students/me')
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .send(payload)
+        .expect(400);
+    }
+  }, 15_000);
+
+  it('allows null to clear nullable profile fields', async () => {
+    await request(app.getHttpServer())
+      .patch('/api/students/me')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({
+        bio: 'Temporary bio',
+        location: 'Temporary location',
+        contactEmail: 'temporary.contact@example.com',
+        githubUrl: 'https://github.com/temporary',
+        portfolioUrl: 'https://temporary.example.com',
+      })
+      .expect(200);
+
+    const response = await request(app.getHttpServer())
+      .patch('/api/students/me')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({
+        bio: null,
+        location: null,
+        contactEmail: null,
+        githubUrl: null,
+        portfolioUrl: null,
+      })
+      .expect(200);
+
+    expect(response.body).toMatchObject({
+      bio: null,
+      location: null,
+      contactEmail: null,
+      githubUrl: null,
+      portfolioUrl: null,
+      isPublic: false,
+    });
+  });
+
+  it('validates the final publication state after applying the patch', async () => {
+    await request(app.getHttpServer())
+      .patch('/api/students/me')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({ isPublic: true })
+      .expect(400);
+
+    await request(app.getHttpServer())
+      .patch('/api/students/me')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({ contactEmail: 'publish.contact@example.com' })
+      .expect(200);
+
+    await request(app.getHttpServer())
+      .patch('/api/students/me')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({ isPublic: true })
+      .expect(200);
+
+    await request(app.getHttpServer())
+      .patch('/api/students/me')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({ contactEmail: null })
+      .expect(400);
+
+    const stillPublished = await request(app.getHttpServer())
+      .get('/api/students/me')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .expect(200);
+    expect(stillPublished.body.isPublic).toBe(true);
+    expect(stillPublished.body.contactEmail).toBe(
+      'publish.contact@example.com',
+    );
+
+    const hiddenAndCleared = await request(app.getHttpServer())
+      .patch('/api/students/me')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({ isPublic: false, contactEmail: null })
+      .expect(200);
+    expect(hiddenAndCleared.body.isPublic).toBe(false);
+    expect(hiddenAndCleared.body.contactEmail).toBeNull();
+  });
+
+  it('preserves the publication invariant across concurrent updates', async () => {
+    await prisma.studentProfile.update({
+      where: { id: ownerProfileId },
+      data: {
+        isPublic: true,
+        contactEmail: 'concurrent.contact@example.com',
+      },
+    });
+
+    let releaseBlocker!: () => void;
+    let signalBlockerReady!: (pid: number) => void;
+    let rejectBlockerReady!: (error: unknown) => void;
+    const blockerRelease = new Promise<void>((resolve) => {
+      releaseBlocker = resolve;
+    });
+    const blockerReady = new Promise<number>((resolve, reject) => {
+      signalBlockerReady = resolve;
+      rejectBlockerReady = reject;
+    });
+
+    const blocker = prisma
+      .$transaction(
+        async (transaction) => {
+          const lock = await transaction.$queryRaw<
+            Array<{ backend_pid: number; database_name: string }>
+          >`
+          SELECT pg_backend_pid() AS backend_pid,
+                 current_database() AS database_name
+          FROM student_profiles
+          WHERE id = ${ownerProfileId}::uuid
+          FOR UPDATE
+        `;
+          if (lock.length !== 1) {
+            throw new Error('Could not lock the test student profile');
+          }
+          if (lock[0].database_name !== 'gaza_talent_connect_test') {
+            throw new Error(
+              'Blocking transaction is in an unexpected database',
+            );
+          }
+
+          signalBlockerReady(lock[0].backend_pid);
+          await blockerRelease;
+        },
+        { timeout: 25_000 },
+      )
+      .catch((error: unknown) => {
+        rejectBlockerReady(error);
+        throw error;
+      });
+
+    let hideResponse:
+      Promise<{ status: number; body: Record<string, unknown> }> | undefined;
+    let publishResponse:
+      Promise<{ status: number; body: Record<string, unknown> }> | undefined;
+
+    try {
+      const blockerPid = await blockerReady;
+
+      // Only the hide request has been started at the first checkpoint.
+      hideResponse = request(app.getHttpServer())
+        .patch('/api/students/me')
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .send({ isPublic: false, contactEmail: null })
+        .then((response) => response);
+
+      const firstWaiterPids = await waitForProfileLockWaiters(blockerPid, 1);
+      expect(firstWaiterPids).toHaveLength(1);
+      expect(firstWaiterPids[0].blocking_chain).toContain(blockerPid);
+
+      // The publish request is the only additional profile-lock operation.
+      publishResponse = request(app.getHttpServer())
+        .patch('/api/students/me')
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .send({ isPublic: true })
+        .then((response) => response);
+
+      const bothWaiterPids = await waitForProfileLockWaiters(blockerPid, 2);
+      expect(bothWaiterPids).toHaveLength(2);
+      const waiterPids = bothWaiterPids.map(({ waiter_pid }) => waiter_pid);
+      expect(new Set(waiterPids).size).toBe(2);
+      expect(waiterPids).toContain(firstWaiterPids[0].waiter_pid);
+      for (const waiter of bothWaiterPids) {
+        expect(waiter.blocking_chain).toContain(blockerPid);
+        expect(waiter.wait_event).toBeTruthy();
+      }
+    } finally {
+      releaseBlocker();
+      const pendingResponses: Array<
+        Promise<{ status: number; body: Record<string, unknown> }>
+      > = [];
+      if (hideResponse) pendingResponses.push(hideResponse);
+      if (publishResponse) pendingResponses.push(publishResponse);
+      await Promise.allSettled([blocker, ...pendingResponses]);
+    }
+
+    if (!hideResponse || !publishResponse) {
+      throw new Error('Concurrent PATCH requests were not started');
+    }
+
+    const [hideResult, publishResult] = await Promise.all([
+      hideResponse,
+      publishResponse,
+    ]);
+
+    expect(hideResult.status).toBe(200);
+    expect(publishResult.status).toBe(400);
+
+    const finalProfile = await request(app.getHttpServer())
+      .get('/api/students/me')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .expect(200);
+
+    expect(
+      finalProfile.body.isPublic !== true ||
+        finalProfile.body.contactEmail === 'concurrent.contact@example.com',
+    ).toBe(true);
+    expect(finalProfile.body.isPublic).toBe(false);
+    expect(finalProfile.body.contactEmail).toBeNull();
+  }, 30_000);
+
   afterAll(async () => {
     try {
       if (prisma && (createdUserEmails.size > 0 || createdSkillIds.size > 0)) {
@@ -197,28 +591,42 @@ describe('Student profiles (e2e)', () => {
           throw new Error('E2E cleanup safety check failed');
         }
 
-        for (const email of createdUserEmails) {
-          const user = await prisma.user.findUnique({
-            where: { email },
-            select: { id: true },
-          });
+        const cleanupErrors: unknown[] = [];
 
-          if (user) {
-            await prisma.user.delete({
-              where: { id: user.id, email },
+        for (const email of createdUserEmails) {
+          try {
+            const user = await prisma.user.findUnique({
+              where: { email },
+              select: { id: true },
             });
+
+            if (user) {
+              await prisma.user.delete({
+                where: { id: user.id, email },
+              });
+            }
+          } catch (error: unknown) {
+            cleanupErrors.push(error);
           }
         }
 
         for (const id of createdSkillIds) {
-          const skill = await prisma.skill.findUnique({
-            where: { id },
-            select: { id: true },
-          });
+          try {
+            const skill = await prisma.skill.findUnique({
+              where: { id },
+              select: { id: true },
+            });
 
-          if (skill) {
-            await prisma.skill.delete({ where: { id: skill.id } });
+            if (skill) {
+              await prisma.skill.delete({ where: { id: skill.id } });
+            }
+          } catch (error: unknown) {
+            cleanupErrors.push(error);
           }
+        }
+
+        if (cleanupErrors.length > 0) {
+          throw new AggregateError(cleanupErrors, 'E2E cleanup failed');
         }
       }
     } finally {

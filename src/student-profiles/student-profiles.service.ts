@@ -1,5 +1,44 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { isEmail } from 'class-validator';
 import { PrismaService } from '../prisma/prisma.service';
+import { UpdateStudentProfileDto } from './dto/update-student-profile.dto';
+
+const profileSelect = {
+  id: true,
+  fullName: true,
+  bio: true,
+  location: true,
+  contactEmail: true,
+  githubUrl: true,
+  portfolioUrl: true,
+  isPublic: true,
+  skills: {
+    select: {
+      skill: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+    },
+  },
+} as const;
+
+type SelectedProfile = {
+  id: string;
+  fullName: string;
+  bio: string | null;
+  location: string | null;
+  contactEmail: string | null;
+  githubUrl: string | null;
+  portfolioUrl: string | null;
+  isPublic: boolean;
+  skills: Array<{ skill: { id: string; name: string } }>;
+};
 
 @Injectable()
 export class StudentProfilesService {
@@ -8,32 +47,87 @@ export class StudentProfilesService {
   async getByUserId(userId: string) {
     const profile = await this.prisma.studentProfile.findUnique({
       where: { userId },
-      select: {
-        id: true,
-        fullName: true,
-        bio: true,
-        location: true,
-        contactEmail: true,
-        githubUrl: true,
-        portfolioUrl: true,
-        isPublic: true,
-        skills: {
-          select: {
-            skill: {
-              select: {
-                id: true,
-                name: true,
-              },
-            },
-          },
-        },
-      },
+      select: profileSelect,
     });
 
     if (!profile) {
       throw new NotFoundException('Student profile not found');
     }
 
+    return this.toResponse(profile);
+  }
+
+  async updateByUserId(userId: string, dto: UpdateStudentProfileDto) {
+    return this.prisma.$transaction(async (transaction) => {
+      const lockedProfiles = await transaction.$queryRaw<Array<{ id: string }>>`
+        SELECT id
+        FROM student_profiles
+        WHERE user_id = ${userId}::uuid
+        FOR UPDATE
+      `;
+
+      if (lockedProfiles.length === 0) {
+        throw new NotFoundException('Student profile not found');
+      }
+
+      const current = await transaction.studentProfile.findUnique({
+        where: { userId },
+        select: profileSelect,
+      });
+
+      if (!current) {
+        throw new NotFoundException('Student profile not found');
+      }
+
+      const resultingIsPublic =
+        dto.isPublic === undefined ? current.isPublic : dto.isPublic;
+      const resultingContactEmail =
+        dto.contactEmail === undefined
+          ? current.contactEmail
+          : dto.contactEmail;
+
+      if (
+        resultingIsPublic &&
+        (!resultingContactEmail || !isEmail(resultingContactEmail))
+      ) {
+        throw new BadRequestException(
+          'A valid contactEmail is required to publish the profile',
+        );
+      }
+
+      const data: {
+        fullName?: string;
+        bio?: string | null;
+        location?: string | null;
+        contactEmail?: string | null;
+        githubUrl?: string | null;
+        portfolioUrl?: string | null;
+        isPublic?: boolean;
+      } = {};
+
+      if (dto.fullName !== undefined) data.fullName = dto.fullName;
+      if (dto.bio !== undefined) data.bio = dto.bio;
+      if (dto.location !== undefined) data.location = dto.location;
+      if (dto.contactEmail !== undefined) data.contactEmail = dto.contactEmail;
+      if (dto.githubUrl !== undefined) data.githubUrl = dto.githubUrl;
+      if (dto.portfolioUrl !== undefined) data.portfolioUrl = dto.portfolioUrl;
+      if (dto.isPublic !== undefined) data.isPublic = dto.isPublic;
+
+      if (Object.keys(data).length === 0) {
+        return this.toResponse(current);
+      }
+
+      const updated = await transaction.studentProfile.update({
+        where: { userId },
+        data,
+        select: profileSelect,
+      });
+
+      return this.toResponse(updated);
+    });
+  }
+
+  private toResponse(profile: SelectedProfile) {
     return {
       id: profile.id,
       fullName: profile.fullName,

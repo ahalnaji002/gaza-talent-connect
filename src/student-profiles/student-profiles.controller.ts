@@ -1,6 +1,7 @@
-import { Controller, Get, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Patch, Req, UseGuards } from '@nestjs/common';
 import { Request } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { UpdateStudentProfileDto } from './dto/update-student-profile.dto';
 import { StudentProfilesService } from './student-profiles.service';
 
 interface AuthenticatedRequest extends Request {
@@ -17,5 +18,17 @@ export class StudentProfilesController {
   @UseGuards(JwtAuthGuard)
   getMyProfile(@Req() request: AuthenticatedRequest) {
     return this.studentProfilesService.getByUserId(request.user.userId);
+  }
+
+  @Patch('me')
+  @UseGuards(JwtAuthGuard)
+  updateMyProfile(
+    @Req() request: AuthenticatedRequest,
+    @Body() dto: UpdateStudentProfileDto,
+  ) {
+    return this.studentProfilesService.updateByUserId(
+      request.user.userId,
+      dto,
+    );
   }
 }

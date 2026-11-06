@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { isEmail } from 'class-validator';
 import { PrismaService } from '../prisma/prisma.service';
+import { ReplaceStudentSkillsDto } from './dto/replace-student-skills.dto';
 import { UpdateStudentProfileDto } from './dto/update-student-profile.dto';
 
 const profileSelect = {
@@ -124,6 +125,58 @@ export class StudentProfilesService {
       });
 
       return this.toResponse(updated);
+    });
+  }
+
+  async replaceSkillsByUserId(userId: string, dto: ReplaceStudentSkillsDto) {
+    return this.prisma.$transaction(async (transaction) => {
+      const lockedProfiles = await transaction.$queryRaw<Array<{ id: string }>>`
+        SELECT id
+        FROM student_profiles
+        WHERE user_id = ${userId}::uuid
+        FOR UPDATE
+      `;
+
+      const profile = lockedProfiles[0];
+      if (!profile) {
+        throw new NotFoundException('Student profile not found');
+      }
+
+      if (dto.skillIds.length > 0) {
+        const existingSkills = await transaction.skill.findMany({
+          where: { id: { in: dto.skillIds } },
+          select: { id: true },
+        });
+
+        if (existingSkills.length !== dto.skillIds.length) {
+          throw new BadRequestException('One or more skillIds do not exist');
+        }
+      }
+
+      await transaction.studentSkill.deleteMany({
+        where: { studentProfileId: profile.id },
+      });
+
+      if (dto.skillIds.length > 0) {
+        await transaction.studentSkill.createMany({
+          data: dto.skillIds.map((skillId) => ({
+            studentProfileId: profile.id,
+            skillId,
+          })),
+        });
+      }
+
+      const assignedSkills = await transaction.studentSkill.findMany({
+        where: { studentProfileId: profile.id },
+        select: {
+          skill: {
+            select: { id: true, name: true },
+          },
+        },
+        orderBy: { skillId: 'asc' },
+      });
+
+      return assignedSkills.map(({ skill }) => skill);
     });
   }
 

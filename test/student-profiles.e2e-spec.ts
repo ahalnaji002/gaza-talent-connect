@@ -13,10 +13,12 @@ describe('Student profiles (e2e)', () => {
   let ownerToken: string;
   let secondStudentToken: string;
   let ownerProfileId: string;
+  let secondStudentProfileId: string;
   let ownerEmail: string;
   let secondStudentEmail: string;
   let missingProfileToken: string;
   let ownerSkillId: string;
+  let replacementSkillIds: string[];
 
   const createdUserEmails = new Set<string>();
   const createdSkillIds = new Set<string>();
@@ -55,6 +57,7 @@ describe('Student profiles (e2e)', () => {
     ownerProfileId = owner.profileId;
     ownerToken = owner.accessToken;
     secondStudentEmail = secondStudent.email;
+    secondStudentProfileId = secondStudent.profileId;
     secondStudentToken = secondStudent.accessToken;
     const studentWithoutProfile = await createStudent('No Profile Student');
     missingProfileToken = studentWithoutProfile.accessToken;
@@ -69,6 +72,22 @@ describe('Student profiles (e2e)', () => {
     });
     ownerSkillId = skill.id;
     createdSkillIds.add(skill.id);
+
+    const replacementSkills = await Promise.all(
+      ['Replacement One', 'Replacement Two'].map((name) =>
+        prisma.skill.create({
+          data: { name: `e2e-skill-${name}-${randomUUID()}` },
+          select: { id: true },
+        }),
+      ),
+    );
+    replacementSkillIds = [
+      ownerSkillId,
+      ...replacementSkills.map(({ id }) => id),
+    ];
+    for (const { id } of replacementSkills) {
+      createdSkillIds.add(id);
+    }
 
     await prisma.studentSkill.create({
       data: {
@@ -578,6 +597,272 @@ describe('Student profiles (e2e)', () => {
     ).toBe(true);
     expect(finalProfile.body.isPublic).toBe(false);
     expect(finalProfile.body.contactEmail).toBeNull();
+  }, 30_000);
+
+  it('rejects skill replacement without a JWT', async () => {
+    await request(app.getHttpServer())
+      .put('/api/students/me/skills')
+      .send({ skillIds: [replacementSkillIds[0]] })
+      .expect(401);
+  });
+
+  it('returns 404 when the authenticated user has no student profile', async () => {
+    await request(app.getHttpServer())
+      .put('/api/students/me/skills')
+      .set('Authorization', `Bearer ${missingProfileToken}`)
+      .send({ skillIds: [] })
+      .expect(404);
+  });
+
+  it('replaces the authenticated student skills and returns the resulting list', async () => {
+    const requestedIds = [replacementSkillIds[0], replacementSkillIds[1]];
+
+    const response = await request(app.getHttpServer())
+      .put('/api/students/me/skills')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({ skillIds: requestedIds })
+      .expect(200);
+
+    expect(
+      response.body.map((skill: { id: string }) => skill.id).sort(),
+    ).toEqual([...requestedIds].sort());
+    for (const skill of response.body as Array<Record<string, unknown>>) {
+      expect(Object.keys(skill).sort()).toEqual(['id', 'name']);
+    }
+
+    const profile = await request(app.getHttpServer())
+      .get('/api/students/me')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .expect(200);
+    expect(
+      profile.body.skills.map((skill: { id: string }) => skill.id).sort(),
+    ).toEqual([...requestedIds].sort());
+  });
+
+  it('clears all assigned skills when given an empty array', async () => {
+    const response = await request(app.getHttpServer())
+      .put('/api/students/me/skills')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({ skillIds: [] })
+      .expect(200);
+
+    expect(response.body).toEqual([]);
+    const profile = await request(app.getHttpServer())
+      .get('/api/students/me')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .expect(200);
+    expect(profile.body.skills).toEqual([]);
+  });
+
+  it('rejects duplicate skill IDs', async () => {
+    await request(app.getHttpServer())
+      .put('/api/students/me/skills')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({ skillIds: [replacementSkillIds[0], replacementSkillIds[0]] })
+      .expect(400);
+  });
+
+  it('rejects invalid UUIDs', async () => {
+    await request(app.getHttpServer())
+      .put('/api/students/me/skills')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({ skillIds: ['not-a-uuid'] })
+      .expect(400);
+  });
+
+  it('rejects more than 20 skill IDs', async () => {
+    await request(app.getHttpServer())
+      .put('/api/students/me/skills')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({ skillIds: Array.from({ length: 21 }, () => randomUUID()) })
+      .expect(400);
+  });
+
+  it('rejects unknown skills without partially replacing existing associations', async () => {
+    const existingIds = [replacementSkillIds[0]];
+    await request(app.getHttpServer())
+      .put('/api/students/me/skills')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({ skillIds: existingIds })
+      .expect(200);
+
+    await request(app.getHttpServer())
+      .put('/api/students/me/skills')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({ skillIds: [replacementSkillIds[1], randomUUID()] })
+      .expect(400);
+
+    const profile = await request(app.getHttpServer())
+      .get('/api/students/me')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .expect(200);
+    expect(
+      profile.body.skills.map((skill: { id: string }) => skill.id),
+    ).toEqual(existingIds);
+  });
+
+  it('does not change another student skill associations', async () => {
+    await prisma.studentSkill.create({
+      data: {
+        studentProfileId: secondStudentProfileId,
+        skillId: replacementSkillIds[2],
+      },
+    });
+
+    const before = await prisma.studentSkill.findMany({
+      where: { studentProfileId: secondStudentProfileId },
+      select: { skillId: true },
+    });
+    expect(before.map(({ skillId }) => skillId)).toEqual([
+      replacementSkillIds[2],
+    ]);
+
+    await request(app.getHttpServer())
+      .put('/api/students/me/skills')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({ skillIds: [replacementSkillIds[0]] })
+      .expect(200);
+
+    const after = await prisma.studentSkill.findMany({
+      where: { studentProfileId: secondStudentProfileId },
+      select: { skillId: true },
+    });
+    expect(after.map(({ skillId }) => skillId)).toEqual([
+      replacementSkillIds[2],
+    ]);
+  });
+
+  it('safely accepts the same valid replacement more than once', async () => {
+    const requestedIds = [replacementSkillIds[0], replacementSkillIds[2]];
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const response = await request(app.getHttpServer())
+        .put('/api/students/me/skills')
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .send({ skillIds: requestedIds })
+        .expect(200);
+      expect(
+        response.body.map((skill: { id: string }) => skill.id).sort(),
+      ).toEqual([...requestedIds].sort());
+    }
+  });
+
+  it('serializes concurrent replacements without producing their union', async () => {
+    let releaseBlocker!: () => void;
+    let signalBlockerReady!: (pid: number) => void;
+    let rejectBlockerReady!: (error: unknown) => void;
+    const blockerRelease = new Promise<void>((resolve) => {
+      releaseBlocker = resolve;
+    });
+    const blockerReady = new Promise<number>((resolve, reject) => {
+      signalBlockerReady = resolve;
+      rejectBlockerReady = reject;
+    });
+
+    const blocker = prisma
+      .$transaction(
+        async (transaction) => {
+          const lock = await transaction.$queryRaw<
+            Array<{ backend_pid: number; database_name: string }>
+          >`
+            SELECT pg_backend_pid() AS backend_pid,
+                   current_database() AS database_name
+            FROM student_profiles
+            WHERE id = ${ownerProfileId}::uuid
+            FOR UPDATE
+          `;
+          if (lock.length !== 1) {
+            throw new Error('Could not lock the test student profile');
+          }
+          if (lock[0].database_name !== 'gaza_talent_connect_test') {
+            throw new Error(
+              'Blocking transaction is in an unexpected database',
+            );
+          }
+
+          signalBlockerReady(lock[0].backend_pid);
+          await blockerRelease;
+        },
+        { timeout: 25_000 },
+      )
+      .catch((error: unknown) => {
+        rejectBlockerReady(error);
+        throw error;
+      });
+
+    let firstResponse:
+      | Promise<{ status: number; body: Array<{ id: string; name: string }> }>
+      | undefined;
+    let secondResponse:
+      | Promise<{ status: number; body: Array<{ id: string; name: string }> }>
+      | undefined;
+    const firstSet = [replacementSkillIds[0], replacementSkillIds[1]];
+    const secondSet = [replacementSkillIds[2]];
+
+    try {
+      const blockerPid = await blockerReady;
+      firstResponse = request(app.getHttpServer())
+        .put('/api/students/me/skills')
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .send({ skillIds: firstSet })
+        .then((response) => response);
+
+      const firstWaiters = await waitForProfileLockWaiters(blockerPid, 1);
+      expect(firstWaiters).toHaveLength(1);
+      expect(firstWaiters[0].blocking_chain).toContain(blockerPid);
+
+      secondResponse = request(app.getHttpServer())
+        .put('/api/students/me/skills')
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .send({ skillIds: secondSet })
+        .then((response) => response);
+
+      const bothWaiters = await waitForProfileLockWaiters(blockerPid, 2);
+      expect(bothWaiters).toHaveLength(2);
+      expect(
+        new Set(bothWaiters.map(({ waiter_pid }) => waiter_pid)).size,
+      ).toBe(2);
+      for (const waiter of bothWaiters) {
+        expect(waiter.blocking_chain).toContain(blockerPid);
+        expect(waiter.wait_event).toBeTruthy();
+      }
+    } finally {
+      releaseBlocker();
+      const pending: Array<Promise<unknown>> = [blocker];
+      if (firstResponse) pending.push(firstResponse);
+      if (secondResponse) pending.push(secondResponse);
+      await Promise.allSettled(pending);
+    }
+
+    if (!firstResponse || !secondResponse) {
+      throw new Error('Concurrent PUT requests were not started');
+    }
+
+    const [firstResult, secondResult] = await Promise.all([
+      firstResponse,
+      secondResponse,
+    ]);
+    expect(firstResult.status).toBe(200);
+    expect(secondResult.status).toBe(200);
+
+    const finalProfile = await request(app.getHttpServer())
+      .get('/api/students/me')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .expect(200);
+    const finalIds = finalProfile.body.skills
+      .map((skill: { id: string }) => skill.id)
+      .sort();
+    const sortedFirstSet = [...firstSet].sort();
+    const sortedSecondSet = [...secondSet].sort();
+
+    expect([sortedFirstSet, sortedSecondSet]).toContainEqual(finalIds);
+    expect(finalIds).not.toEqual(
+      [
+        replacementSkillIds[0],
+        replacementSkillIds[1],
+        replacementSkillIds[2],
+      ].sort(),
+    );
   }, 30_000);
 
   afterAll(async () => {

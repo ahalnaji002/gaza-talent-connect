@@ -2,16 +2,16 @@
 
 ## Project Overview
 
-Gaza Talent Connect is a backend API built with NestJS, TypeScript, PostgreSQL, and Prisma. The currently implemented endpoints support student registration, JWT login, and authenticated reading and updating of each student's own profile. Public Talent Discovery is planned for Task 06 and is not implemented yet.
+Gaza Talent Connect is a backend API built with NestJS, TypeScript, PostgreSQL, and Prisma. The currently implemented endpoints support student registration, JWT login, and authenticated reading and updating of each student's own profile and selected skills. Public Talent Discovery is planned for Task 06 and is not implemented yet.
 
 ## Features
 
 - Student registration and JWT login.
 - Read and update the authenticated student's own profile.
+- Replace the authenticated student's selected skills from the predefined catalog.
 - Public read-only catalog of predefined skills.
 - Profiles are hidden by default. Publishing requires a valid contact email; the private account email is not returned by profile routes.
 - Profile skills are returned as `{ id, name }` objects.
-- Replacing a student's skills with `PUT /api/students/me/skills` is not implemented yet.
 - Public Talent Discovery is planned for Task 06; no public student directory endpoint is available yet.
 
 ### Read your profile
@@ -55,6 +55,16 @@ GET /api/skills
 ```
 
 This public endpoint does not require a JWT. It returns `200` with a direct array of `{ id, name }` objects ordered by `name` and then `id`; it returns `[]` when the catalog is empty. The API does not create, update, or delete catalog skills.
+
+### Replace your skills
+
+```http
+PUT /api/students/me/skills
+Authorization: Bearer <accessToken>
+Content-Type: application/json
+```
+
+Send `{ "skillIds": ["uuid-1", "uuid-2"] }` to replace the complete skill list for the authenticated student's profile. The array accepts 0–20 distinct UUIDs that exist in the catalog; send `[]` to clear all assigned skills. A successful request returns `200` with the resulting array of `{ id, name }` skills. Missing or invalid JWT returns `401`; a missing student profile returns `404`; invalid input or unknown skill IDs returns `400`. The operation is atomic, and students cannot modify the shared catalog.
 
 ## Setup
 

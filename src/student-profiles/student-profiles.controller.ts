@@ -1,6 +1,15 @@
-import { Body, Controller, Get, Patch, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Patch,
+  Put,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { Request } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { ReplaceStudentSkillsDto } from './dto/replace-student-skills.dto';
 import { UpdateStudentProfileDto } from './dto/update-student-profile.dto';
 import { StudentProfilesService } from './student-profiles.service';
 
@@ -27,6 +36,18 @@ export class StudentProfilesController {
     @Body() dto: UpdateStudentProfileDto,
   ) {
     return this.studentProfilesService.updateByUserId(
+      request.user.userId,
+      dto,
+    );
+  }
+
+  @Put('me/skills')
+  @UseGuards(JwtAuthGuard)
+  replaceMySkills(
+    @Req() request: AuthenticatedRequest,
+    @Body() dto: ReplaceStudentSkillsDto,
+  ) {
+    return this.studentProfilesService.replaceSkillsByUserId(
       request.user.userId,
       dto,
     );

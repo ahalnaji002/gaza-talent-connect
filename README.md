@@ -78,9 +78,19 @@ npm run db:seed
 Remove-Item Env:SKILLS_SEED_CONFIRM_DATABASE
 ```
 
-The seed checks PostgreSQL's actual `current_database()` before inserting. It is repeatable and does not delete or rename existing skills or remove student-skill links. Do not confirm a development or production database without separate approval.
+The seed checks PostgreSQL's actual `current_database()` before inserting. It only inserts catalog names that are missing, so it is repeatable: running it again creates no duplicates. It never deletes or renames existing skills, never changes their IDs, and never removes student-skill links. A database seeded with the earlier 15-skill catalog gains the 35 new skills when the seed is run again. Do not confirm a development or production database without separate approval.
 
-Initial catalog: JavaScript, TypeScript, Python, Java, C++, React, Next.js, Node.js, NestJS, PostgreSQL, MySQL, HTML, CSS, Git, Docker.
+The predefined catalog has 50 skills:
+
+- **Original 15:** JavaScript, TypeScript, Python, Java, C++, React, Next.js, Node.js, NestJS, PostgreSQL, MySQL, HTML, CSS, Git, Docker.
+- **Front end:** Angular, Vue.js, Tailwind CSS, Bootstrap, Sass, Redux.
+- **Back end:** Express.js, Django, Flask, FastAPI, Laravel, PHP, C#, .NET, Spring Boot.
+- **Mobile:** Kotlin, Swift, Dart, Flutter, React Native.
+- **Data and APIs:** MongoDB, Redis, SQLite, Prisma, GraphQL, REST APIs.
+- **Cloud and operations:** AWS, Azure, Linux, Kubernetes, CI/CD.
+- **Design and quality:** Figma, UI/UX Design, Software Testing, Cybersecurity.
+
+Each student can select at most 20 skills from the catalog (see `PUT /api/students/me/skills`).
 
 ## Start the API and open documentation
 

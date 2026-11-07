@@ -1,7 +1,11 @@
 import { PrismaService } from '../src/prisma/prisma.service';
 import type { PrismaClient } from '../generated/prisma/client';
 
+// The predefined catalog (50 skills). The seed only inserts missing names, so
+// existing skills keep their IDs and student selections. Never rename or remove
+// an entry here: a renamed entry would be inserted as a new skill.
 export const INITIAL_SKILL_NAMES = [
+  // Original catalog
   'JavaScript',
   'TypeScript',
   'Python',
@@ -17,6 +21,42 @@ export const INITIAL_SKILL_NAMES = [
   'CSS',
   'Git',
   'Docker',
+  // Catalog expansion
+  'Angular',
+  'Vue.js',
+  'Tailwind CSS',
+  'Bootstrap',
+  'Sass',
+  'Redux',
+  'Express.js',
+  'Django',
+  'Flask',
+  'FastAPI',
+  'Laravel',
+  'PHP',
+  'C#',
+  '.NET',
+  'Spring Boot',
+  'Kotlin',
+  'Swift',
+  'Dart',
+  'Flutter',
+  'React Native',
+  'MongoDB',
+  'Redis',
+  'SQLite',
+  'Prisma',
+  'GraphQL',
+  'REST APIs',
+  'AWS',
+  'Azure',
+  'Linux',
+  'Kubernetes',
+  'CI/CD',
+  'Figma',
+  'UI/UX Design',
+  'Software Testing',
+  'Cybersecurity',
 ] as const;
 
 type SkillSeedClient = Pick<PrismaClient, 'skill'>;

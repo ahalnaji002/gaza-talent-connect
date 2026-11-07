@@ -72,7 +72,7 @@ seed section) and at least one student who has added a contact email and publish
 | `/login`              | Public    | Shared login for students and companies. Returns to the requested page, or to the account's own dashboard. |
 | `/dashboard`          | Student   | Overview: job title, visibility status, profile checklist, skills and projects.                     |
 | `/dashboard/profile`  | Student   | Edit profile fields (including job title) and public/private visibility.                            |
-| `/dashboard/skills`   | Student   | Choose up to 20 skills from the catalog; saving replaces the full list (or clears it).               |
+| `/dashboard/skills`   | Student   | Choose up to 20 skills from the searchable 50-skill catalog; saving replaces the full list (or clears it). |
 | `/dashboard/projects` | Student   | Create, edit and delete projects (inline delete confirmation).                                      |
 | `/dashboard/feedback` | Student   | Private company feedback addressed to the student: company name, message and date.                  |
 | `/company`            | Company   | Company dashboard: company name, links to discovery and sent feedback, recent feedback.             |

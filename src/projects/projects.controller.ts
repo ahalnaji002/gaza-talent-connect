@@ -17,6 +17,19 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
 import { ProjectsService } from './projects.service';
+import {
+  ApiBadRequestResponse,
+  ApiBearerAuth,
+  ApiCreatedResponse,
+  ApiInternalServerErrorResponse,
+  ApiNoContentResponse,
+  ApiNotFoundResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+  ApiUnauthorizedResponse,
+} from '@nestjs/swagger';
+import { ApiErrorResponseDto, ProjectResponseDto } from '../swagger-responses';
 
 interface AuthenticatedRequest extends Request {
   user: {
@@ -26,20 +39,46 @@ interface AuthenticatedRequest extends Request {
 
 @Controller('projects')
 @UseGuards(JwtAuthGuard)
+@ApiTags('Projects')
+@ApiBearerAuth('bearer')
 export class ProjectsController {
   constructor(private readonly projectsService: ProjectsService) {}
 
   @Post()
+  @ApiOperation({ summary: 'Create a project for the authenticated student' })
+  @ApiCreatedResponse({ type: ProjectResponseDto })
+  @ApiBadRequestResponse({ type: ApiErrorResponseDto })
+  @ApiUnauthorizedResponse({ type: ApiErrorResponseDto })
+  @ApiNotFoundResponse({
+    type: ApiErrorResponseDto,
+    description: 'Student profile not found',
+  })
+  @ApiInternalServerErrorResponse({ type: ApiErrorResponseDto })
   create(@Req() request: AuthenticatedRequest, @Body() dto: CreateProjectDto) {
     return this.projectsService.createByUserId(request.user.userId, dto);
   }
 
   @Get('me')
+  @ApiOperation({
+    summary: 'List the authenticated student’s projects, newest first',
+  })
+  @ApiOkResponse({ type: ProjectResponseDto, isArray: true })
+  @ApiUnauthorizedResponse({ type: ApiErrorResponseDto })
+  @ApiInternalServerErrorResponse({ type: ApiErrorResponseDto })
   findMine(@Req() request: AuthenticatedRequest) {
     return this.projectsService.findByUserId(request.user.userId);
   }
 
   @Patch(':id')
+  @ApiOperation({ summary: 'Update an owned project' })
+  @ApiOkResponse({ type: ProjectResponseDto })
+  @ApiBadRequestResponse({ type: ApiErrorResponseDto })
+  @ApiUnauthorizedResponse({ type: ApiErrorResponseDto })
+  @ApiNotFoundResponse({
+    type: ApiErrorResponseDto,
+    description: 'Project not found or not owned by the authenticated student',
+  })
+  @ApiInternalServerErrorResponse({ type: ApiErrorResponseDto })
   update(
     @Req() request: AuthenticatedRequest,
     @Param('id', new ParseUUIDPipe()) id: string,
@@ -50,6 +89,15 @@ export class ProjectsController {
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Delete an owned project' })
+  @ApiNoContentResponse({ description: 'Project deleted; no response body' })
+  @ApiBadRequestResponse({ type: ApiErrorResponseDto })
+  @ApiUnauthorizedResponse({ type: ApiErrorResponseDto })
+  @ApiNotFoundResponse({
+    type: ApiErrorResponseDto,
+    description: 'Project not found or not owned by the authenticated student',
+  })
+  @ApiInternalServerErrorResponse({ type: ApiErrorResponseDto })
   remove(
     @Req() request: AuthenticatedRequest,
     @Param('id', new ParseUUIDPipe()) id: string,

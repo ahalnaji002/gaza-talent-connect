@@ -123,11 +123,14 @@ npm run start:dev
 
 The API listens on port `3000` by default and uses the `/api` prefix.
 
+Interactive OpenAPI documentation is available at `http://localhost:3000/api/docs`.
+
 ## Dependencies
 
 - NestJS 11 and TypeScript
 - Prisma 7 and PostgreSQL
 - Passport JWT and `@nestjs/jwt`
+- `@nestjs/swagger` for OpenAPI documentation and Swagger UI
 - `class-validator` and `class-transformer`
 - Jest and Supertest for tests
 

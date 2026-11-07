@@ -4,6 +4,7 @@ import { publicStudentsApi } from '../api/endpoints';
 import { EmptyState, ErrorAlert, LoadingState } from '../components/Feedback';
 import { Avatar, ExternalLink, SkillTags, safeHref } from '../components/StudentBits';
 import { ProjectSummary } from '../components/ProjectSummary';
+import { WriteFeedback } from '../components/WriteFeedback';
 import { useApiData } from '../hooks/useApiData';
 import { isUuid } from '../utils/validation';
 
@@ -68,6 +69,7 @@ export function StudentProfilePage() {
           <h1 id="student-name" className="profile-name">
             {student.fullName}
           </h1>
+          {student.jobTitle && <p className="job-title">{student.jobTitle}</p>}
           {student.location && <p className="muted">{student.location}</p>}
           {student.contactEmail && (
             <a className="button button-primary button-block" href={`mailto:${student.contactEmail}`}>
@@ -126,6 +128,8 @@ export function StudentProfilePage() {
               </div>
             )}
           </section>
+
+          <WriteFeedback studentProfileId={student.id} studentName={student.fullName} />
         </div>
       </div>
     </div>

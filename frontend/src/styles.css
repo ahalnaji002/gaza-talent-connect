@@ -1297,3 +1297,98 @@ p:last-child {
     font-size: 0.95rem;
   }
 }
+
+/* Job titles and private company feedback */
+
+.job-title {
+  color: var(--blue-700);
+  font-weight: 600;
+  margin: 0;
+}
+
+.student-card .job-title {
+  margin-top: 0.1rem;
+}
+
+.profile-summary .job-title {
+  margin-bottom: 0.25rem;
+}
+
+.eyebrow-dark {
+  color: var(--blue-600);
+  margin-bottom: 0.35rem;
+}
+
+.hero-note {
+  margin-top: 1.25rem;
+  color: #c3d4f3;
+  font-size: 0.95rem;
+}
+
+.hero-note a {
+  color: #fff;
+  font-weight: 600;
+}
+
+.feedback-card {
+  display: grid;
+  gap: 0.6rem;
+  border-left: 4px solid var(--blue-100);
+}
+
+.feedback-card-header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.25rem 1rem;
+}
+
+.feedback-snippet {
+  margin: 0.25rem 0 0;
+  color: var(--ink-soft);
+  font-size: 0.925rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.feedback-compose {
+  border-color: var(--blue-100);
+}
+
+.feedback-invite {
+  background: var(--blue-50);
+  border-color: var(--blue-100);
+  box-shadow: none;
+}
+
+.stack.is-refreshing {
+  opacity: 0.55;
+}
+
+/* Total company-feedback count beside the dashboard tab (not an unread count). */
+.tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.4rem;
+  height: 1.4rem;
+  padding: 0 0.4rem;
+  margin-left: 0.4rem;
+  border-radius: 999px;
+  background: var(--blue-100);
+  color: var(--navy-800);
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1;
+  vertical-align: 0.1em;
+}
+
+.tab-active .tab-badge {
+  background: var(--blue-600);
+  color: #fff;
+}

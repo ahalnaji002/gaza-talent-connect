@@ -12,6 +12,7 @@ import { UpdateStudentProfileDto } from './dto/update-student-profile.dto';
 const profileSelect = {
   id: true,
   fullName: true,
+  jobTitle: true,
   bio: true,
   location: true,
   contactEmail: true,
@@ -33,6 +34,7 @@ const profileSelect = {
 type SelectedProfile = {
   id: string;
   fullName: string;
+  jobTitle: string | null;
   bio: string | null;
   location: string | null;
   contactEmail: string | null;
@@ -45,6 +47,7 @@ type SelectedProfile = {
 const publicProfileSelect = {
   id: true,
   fullName: true,
+  jobTitle: true,
   bio: true,
   location: true,
   contactEmail: true,
@@ -82,6 +85,7 @@ const publicProfileDetailSelect = {
 type PublicProfile = {
   id: string;
   fullName: string;
+  jobTitle: string | null;
   bio: string | null;
   location: string | null;
   contactEmail: string | null;
@@ -221,6 +225,7 @@ export class StudentProfilesService {
 
       const data: {
         fullName?: string;
+        jobTitle?: string | null;
         bio?: string | null;
         location?: string | null;
         contactEmail?: string | null;
@@ -230,6 +235,7 @@ export class StudentProfilesService {
       } = {};
 
       if (dto.fullName !== undefined) data.fullName = dto.fullName;
+      if (dto.jobTitle !== undefined) data.jobTitle = dto.jobTitle;
       if (dto.bio !== undefined) data.bio = dto.bio;
       if (dto.location !== undefined) data.location = dto.location;
       if (dto.contactEmail !== undefined) data.contactEmail = dto.contactEmail;
@@ -307,6 +313,7 @@ export class StudentProfilesService {
     return {
       id: profile.id,
       fullName: profile.fullName,
+      jobTitle: profile.jobTitle,
       bio: profile.bio,
       location: profile.location,
       contactEmail: profile.contactEmail,
@@ -321,6 +328,7 @@ export class StudentProfilesService {
     return {
       id: profile.id,
       fullName: profile.fullName,
+      jobTitle: profile.jobTitle,
       bio: profile.bio,
       location: profile.location,
       contactEmail: profile.contactEmail,

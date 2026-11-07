@@ -3,7 +3,7 @@ import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 
 export function Layout() {
-  const { isAuthenticated, logout } = useAuth();
+  const { isAuthenticated, role, logout } = useAuth();
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -56,9 +56,15 @@ export function Layout() {
             </NavLink>
             {isAuthenticated ? (
               <>
-                <NavLink to="/dashboard" className={navClass}>
-                  My dashboard
-                </NavLink>
+                {role === 'COMPANY' ? (
+                  <NavLink to="/company" className={navClass}>
+                    Company dashboard
+                  </NavLink>
+                ) : (
+                  <NavLink to="/dashboard" className={navClass}>
+                    My dashboard
+                  </NavLink>
+                )}
                 <button type="button" className="button button-secondary" onClick={handleLogout}>
                   Log out
                 </button>

@@ -2,22 +2,32 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { ApiError } from '../api/client';
 import { authApi } from '../api/endpoints';
-import { useAuth } from '../auth/AuthContext';
+import type { UserRole } from '../api/types';
+import { homePathFor, useAuth } from '../auth/AuthContext';
 import { Alert, ErrorAlert } from '../components/Feedback';
 import { TextField } from '../components/FormField';
 import { focusFirstInvalid } from '../utils/focus';
 import { isValidEmail, passwordProblems, utf8ByteLength } from '../utils/validation';
 
-function useRedirectTarget(): string {
+function useRequestedPath(): string | null {
   const location = useLocation();
   const from = (location.state as { from?: string } | null)?.from;
-  return from && from.startsWith('/') && !from.startsWith('//') ? from : '/dashboard';
+  return from && from.startsWith('/') && !from.startsWith('//') ? from : null;
+}
+
+/** Returns to the requested page unless it belongs to the other account type. */
+function destinationFor(role: UserRole, requested: string | null): string {
+  if (!requested) return homePathFor(role);
+  const otherArea = role === 'COMPANY' ? '/dashboard' : '/company';
+  return requested === otherArea || requested.startsWith(otherArea + '/')
+    ? homePathFor(role)
+    : requested;
 }
 
 export function LoginPage() {
-  const { isAuthenticated, login, sessionEndReason, clearSessionEndReason } = useAuth();
+  const { isAuthenticated, role, login, sessionEndReason, clearSessionEndReason } = useAuth();
   const navigate = useNavigate();
-  const target = useRedirectTarget();
+  const requested = useRequestedPath();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
@@ -29,7 +39,9 @@ export function LoginPage() {
     if (sessionEndReason) clearSessionEndReason();
   }, [sessionEndReason, clearSessionEndReason]);
 
-  if (isAuthenticated && !submitting) return <Navigate to={target} replace />;
+  if (isAuthenticated && role && !submitting) {
+    return <Navigate to={destinationFor(role, requested)} replace />;
+  }
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -45,8 +57,8 @@ export function LoginPage() {
     setSubmitting(true);
     setSubmitError(null);
     try {
-      await login({ email: email.trim(), password });
-      navigate(target, { replace: true });
+      const signedInRole = await login({ email: email.trim(), password });
+      navigate(destinationFor(signedInRole, requested), { replace: true });
     } catch (error) {
       setSubmitError(error);
       setSubmitting(false);
@@ -57,7 +69,9 @@ export function LoginPage() {
     <div className="container auth-page">
       <div className="card auth-card">
         <h1 className="h2">Welcome back</h1>
-        <p className="muted">Log in to manage your student profile and projects.</p>
+        <p className="muted">
+          Students and companies both log in here with their account email.
+        </p>
         {expiredNotice && (
           <Alert variant="info">Your session has ended. Please log in again.</Alert>
         )}
@@ -88,7 +102,8 @@ export function LoginPage() {
           </button>
         </form>
         <p className="auth-switch">
-          New here? <Link to="/register">Create a student account</Link>
+          New here? <Link to="/register">Create a student account</Link> or{' '}
+          <Link to="/register/company">register a company</Link>
         </p>
       </div>
     </div>
@@ -96,7 +111,7 @@ export function LoginPage() {
 }
 
 export function RegisterPage() {
-  const { isAuthenticated, login } = useAuth();
+  const { isAuthenticated, role, login } = useAuth();
   const navigate = useNavigate();
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
@@ -107,7 +122,7 @@ export function RegisterPage() {
   const [submitting, setSubmitting] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
 
-  if (isAuthenticated && !submitting) return <Navigate to="/dashboard" replace />;
+  if (isAuthenticated && role && !submitting) return <Navigate to={homePathFor(role)} replace />;
 
   const validate = () => {
     const next: Record<string, string> = {};
@@ -213,6 +228,9 @@ export function RegisterPage() {
         </form>
         <p className="auth-switch">
           Already registered? <Link to="/login">Log in</Link>
+        </p>
+        <p className="auth-switch">
+          Hiring? <Link to="/register/company">Create a company account</Link>
         </p>
       </div>
     </div>

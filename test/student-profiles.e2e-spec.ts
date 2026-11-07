@@ -216,6 +216,7 @@ describe('Student profiles (e2e)', () => {
     expect(response.body).toEqual({
       id: ownerProfileId,
       fullName: 'Owner Student',
+      jobTitle: null,
       bio: null,
       location: null,
       contactEmail: null,
@@ -255,6 +256,7 @@ describe('Student profiles (e2e)', () => {
       [
         'id',
         'fullName',
+        'jobTitle',
         'bio',
         'location',
         'contactEmail',
@@ -297,6 +299,7 @@ describe('Student profiles (e2e)', () => {
     expect(response.body).toEqual({
       id: ownerProfileId,
       fullName: 'Updated Owner',
+      jobTitle: null,
       bio: 'Backend developer',
       location: 'Gaza',
       contactEmail: 'owner.contact@example.com',

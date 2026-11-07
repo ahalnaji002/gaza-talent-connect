@@ -12,6 +12,9 @@ import {
 } from '@nestjs/common';
 import { Request } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { Roles } from '../auth/roles.decorator';
+import { RolesGuard } from '../auth/roles.guard';
+import { UserRole } from '../../generated/prisma/client';
 import { DiscoverStudentsQueryDto } from './dto/discover-students-query.dto';
 import { ReplaceStudentSkillsDto } from './dto/replace-student-skills.dto';
 import { UpdateStudentProfileDto } from './dto/update-student-profile.dto';
@@ -19,6 +22,7 @@ import { StudentProfilesService } from './student-profiles.service';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
+  ApiForbiddenResponse,
   ApiInternalServerErrorResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
@@ -83,8 +87,13 @@ export class StudentProfilesController {
   }
 
   @Get('me')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.STUDENT)
   @ApiBearerAuth('bearer')
+  @ApiForbiddenResponse({
+    type: ApiErrorResponseDto,
+    description: 'Only student accounts can use this route',
+  })
   @ApiOperation({
     summary:
       'Read the authenticated student’s own profile, including while hidden',
@@ -101,8 +110,13 @@ export class StudentProfilesController {
   }
 
   @Patch('me')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.STUDENT)
   @ApiBearerAuth('bearer')
+  @ApiForbiddenResponse({
+    type: ApiErrorResponseDto,
+    description: 'Only student accounts can use this route',
+  })
   @ApiOperation({ summary: 'Update the authenticated student’s own profile' })
   @ApiOkResponse({ type: StudentProfileResponseDto })
   @ApiBadRequestResponse({ type: ApiErrorResponseDto })
@@ -120,8 +134,13 @@ export class StudentProfilesController {
   }
 
   @Put('me/skills')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.STUDENT)
   @ApiBearerAuth('bearer')
+  @ApiForbiddenResponse({
+    type: ApiErrorResponseDto,
+    description: 'Only student accounts can use this route',
+  })
   @ApiOperation({
     summary: 'Replace all skills assigned to the authenticated student',
   })

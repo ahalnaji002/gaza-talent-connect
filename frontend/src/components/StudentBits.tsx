@@ -77,6 +77,7 @@ export function StudentCard({
               {student.fullName}
             </Link>
           </h3>
+          {student.jobTitle && <p className="job-title small">{student.jobTitle}</p>}
           {student.location && <p className="muted small">{student.location}</p>}
         </div>
       </header>

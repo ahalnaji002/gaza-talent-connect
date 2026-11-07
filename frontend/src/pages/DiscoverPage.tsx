@@ -76,6 +76,12 @@ export function DiscoverPage() {
               </Link>
             </div>
           )}
+          {!isAuthenticated && (
+            <p className="hero-note">
+              Hiring? <Link to="/register/company">Create a company account</Link> to send
+              students private feedback.
+            </p>
+          )}
         </div>
       </section>
 

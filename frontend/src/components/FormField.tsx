@@ -62,6 +62,7 @@ export function TextField({ id, label, hint, error, optional, ...inputProps }: T
 
 type TextAreaFieldProps = Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, 'id'> & {
   id: string;
+  ref?: Ref<HTMLTextAreaElement>;
   label: string;
   hint?: string;
   error?: string | null;

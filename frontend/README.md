@@ -1,8 +1,12 @@
 # Gaza Talent Connect — Frontend
 
-A lightweight React + TypeScript single-page app for Gaza Talent Connect. Visitors browse
-published student profiles; students register, manage their profile, skills and projects, and
-choose when to publish. It talks to the NestJS API in the repository root.
+A lightweight React + TypeScript single-page app for Gaza Talent Connect, talking to the NestJS
+API in the repository root:
+
+- Visitors browse published student profiles.
+- Students register, manage their profile (including a job title), skills and projects, choose
+  when to publish, and read private feedback from companies.
+- Companies register, discover students, and send, edit or delete private feedback.
 
 Built with Vite, React Router, plain CSS and the native Fetch API. There is no UI framework or
 state-management library.
@@ -62,24 +66,37 @@ seed section) and at least one student who has added a contact email and publish
 | Route                 | Access    | Description                                                                                         |
 | --------------------- | --------- | --------------------------------------------------------------------------------------------------- |
 | `/`                   | Public    | Talent discovery: filter by skills (any match, best matches first) with pagination. Filter state is kept in the URL. |
-| `/students/:id`       | Public    | Published profile by **student profile ID**: bio, links, contact email, skills and projects.        |
+| `/students/:id`       | Public    | Published profile by **student profile ID**: job title, bio, links, contact email, skills and projects. Signed-in companies also see a private feedback form. |
 | `/register`           | Public    | Create a student account. Signs in automatically afterwards.                                        |
-| `/login`              | Public    | Log in. Returns to the page you were trying to open.                                                |
-| `/dashboard`          | Student   | Overview: visibility status, profile checklist, skills and projects.                                |
-| `/dashboard/profile`  | Student   | Edit profile fields and public/private visibility.                                                  |
+| `/register/company`   | Public    | Create a company account (company name, email, password). Signs in automatically afterwards.        |
+| `/login`              | Public    | Shared login for students and companies. Returns to the requested page, or to the account's own dashboard. |
+| `/dashboard`          | Student   | Overview: job title, visibility status, profile checklist, skills and projects.                     |
+| `/dashboard/profile`  | Student   | Edit profile fields (including job title) and public/private visibility.                            |
 | `/dashboard/skills`   | Student   | Choose up to 20 skills from the catalog; saving replaces the full list (or clears it).               |
 | `/dashboard/projects` | Student   | Create, edit and delete projects (inline delete confirmation).                                      |
+| `/dashboard/feedback` | Student   | Private company feedback addressed to the student: company name, message and date.                  |
+| `/company`            | Company   | Company dashboard: company name, links to discovery and sent feedback, recent feedback.             |
+| `/company/feedback`   | Company   | Feedback the company has sent, with edit and delete (inline confirmation) and pagination.           |
 
-Hidden, unpublished and nonexistent profiles all show the same "not available" page.
+Hidden, unpublished and nonexistent profiles all show the same "not available" page. Feedback is
+never shown on public pages. Opening the other account type's area redirects to your own
+dashboard. That redirect is only a convenience: the API independently answers `403`.
 
 ## API integration
 
-All 12 backend endpoints are used, through `src/api/endpoints.ts`:
+All backend endpoints are used, through `src/api/endpoints.ts`:
 
 | Endpoint                         | Used by                                   |
 | -------------------------------- | ----------------------------------------- |
 | `POST /api/auth/register`        | Register page                             |
+| `POST /api/auth/register/company`| Company registration page                 |
 | `POST /api/auth/login`           | Login page; auto-login after registering  |
+| `GET /api/companies/me`          | Company dashboard                         |
+| `POST /api/feedback`             | Feedback form on public student profiles  |
+| `GET /api/feedback/sent`         | Company dashboard, Sent feedback          |
+| `PATCH /api/feedback/:id`        | Sent feedback (edit)                      |
+| `DELETE /api/feedback/:id`       | Sent feedback (delete)                    |
+| `GET /api/students/me/feedback`  | Student Company feedback page             |
 | `GET /api/students/me`           | Dashboard, Edit profile, Skills           |
 | `PATCH /api/students/me`         | Edit profile                              |
 | `GET /api/skills`                | Discovery filters, Skills page            |
@@ -101,7 +118,9 @@ Notes:
 ## Sessions
 
 The JWT from `POST /api/auth/login` is kept in `localStorage`, together with its expiry time
-(`expiresIn`). This suits a demonstration app. The token is never logged or put in URLs. The
+(`expiresIn`) and the account `role`. The role only decides which pages and links are shown; the
+API checks the real role on every request. Sessions saved by the earlier version have no role, so
+those users are simply asked to log in again. This storage approach suits a demonstration app. The token is never logged or put in URLs. The
 session ends automatically when the token expires, when the API answers `401`, or on logout.
 
 ## Scripts

@@ -46,6 +46,19 @@ export function urlProblem(value: string, httpsOnly: boolean): string | null {
   return null;
 }
 
+export const FEEDBACK_MAX_LENGTH = 2000;
+export const JOB_TITLE_MAX_LENGTH = 100;
+
+/** Mirrors the feedback DTO: non-blank after trimming, at most 2,000 characters. */
+export function feedbackProblem(message: string): string | null {
+  const trimmed = message.trim();
+  if (!trimmed) return 'Write a message before sending.';
+  if (trimmed.length > FEEDBACK_MAX_LENGTH) {
+    return `Feedback must be ${FEEDBACK_MAX_LENGTH.toLocaleString('en')} characters or fewer.`;
+  }
+  return null;
+}
+
 /** Empty or whitespace-only text becomes null so nullable fields are cleared. */
 export function toNullable(value: string): string | null {
   const trimmed = value.trim();

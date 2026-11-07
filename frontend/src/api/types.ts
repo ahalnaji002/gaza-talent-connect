@@ -28,10 +28,32 @@ export interface LoginRequest {
   password: string;
 }
 
+export type UserRole = 'STUDENT' | 'COMPANY';
+
 export interface LoginResponse {
   accessToken: string;
   tokenType: string;
   expiresIn: number;
+  /** For choosing pages only; the server enforces every permission. */
+  role: UserRole;
+}
+
+export interface RegisterCompanyRequest {
+  companyName: string;
+  email: string;
+  password: string;
+}
+
+export interface CompanySummary {
+  id: string;
+  name: string;
+}
+
+export interface RegisterCompanyResponse {
+  id: string;
+  email: string;
+  role: 'COMPANY';
+  companyProfile: CompanySummary;
 }
 
 /** Shape returned by GET/PATCH /students/me and in discovery results. */
@@ -39,6 +61,7 @@ export interface StudentProfile {
   /** Student profile ID (not the account user ID). */
   id: string;
   fullName: string;
+  jobTitle: string | null;
   bio: string | null;
   location: string | null;
   contactEmail: string | null;
@@ -50,6 +73,7 @@ export interface StudentProfile {
 
 export interface UpdateProfileRequest {
   fullName?: string;
+  jobTitle?: string | null;
   bio?: string | null;
   location?: string | null;
   contactEmail?: string | null;
@@ -95,4 +119,34 @@ export interface DiscoveryQuery {
   skillIds?: string[];
   page?: number;
   limit?: number;
+}
+
+export interface PageMeta {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
+export interface Page<T> {
+  data: T[];
+  meta: PageMeta;
+}
+
+/** Private feedback as seen by the company that wrote it. */
+export interface SentFeedback {
+  id: string;
+  message: string;
+  createdAt: string;
+  updatedAt: string;
+  student: { id: string; fullName: string };
+}
+
+/** Private feedback as seen by the student it is addressed to. */
+export interface ReceivedFeedback {
+  id: string;
+  message: string;
+  createdAt: string;
+  updatedAt: string;
+  company: { name: string };
 }

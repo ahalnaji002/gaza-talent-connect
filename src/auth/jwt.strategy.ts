@@ -1,7 +1,10 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
+import { isUUID } from 'class-validator';
 import { ExtractJwt, Strategy } from 'passport-jwt';
+import { PrismaService } from '../prisma/prisma.service';
+import { AuthenticatedUser } from './authenticated-user';
 
 interface JwtPayload {
   sub: string;
@@ -11,7 +14,10 @@ interface JwtPayload {
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
-  constructor(configService: ConfigService) {
+  constructor(
+    configService: ConfigService,
+    private readonly prisma: PrismaService,
+  ) {
     const secret = configService.get<string>('JWT_SECRET');
 
     if (!secret || secret.trim().length === 0) {
@@ -26,11 +32,25 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     });
   }
 
-  validate(payload: JwtPayload) {
-    if (typeof payload.sub !== 'string' || !payload.sub) {
+  /**
+   * The token carries only the user ID. The role is always read from the
+   * database, so it can never be supplied or altered by the client, and tokens
+   * issued before roles existed keep working.
+   */
+  async validate(payload: JwtPayload): Promise<AuthenticatedUser> {
+    if (typeof payload.sub !== 'string' || !isUUID(payload.sub)) {
       throw new UnauthorizedException('Invalid token payload');
     }
 
-    return { userId: payload.sub };
+    const user = await this.prisma.user.findUnique({
+      where: { id: payload.sub },
+      select: { id: true, role: true },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('Invalid token');
+    }
+
+    return { userId: user.id, role: user.role };
   }
 }

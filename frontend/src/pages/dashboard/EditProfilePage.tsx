@@ -7,10 +7,16 @@ import { Alert, ErrorAlert, LoadingState } from '../../components/Feedback';
 import { TextAreaField, TextField } from '../../components/FormField';
 import { useApiData } from '../../hooks/useApiData';
 import { focusFirstInvalid } from '../../utils/focus';
-import { isValidEmail, toNullable, urlProblem } from '../../utils/validation';
+import {
+  JOB_TITLE_MAX_LENGTH,
+  isValidEmail,
+  toNullable,
+  urlProblem,
+} from '../../utils/validation';
 
 interface FormState {
   fullName: string;
+  jobTitle: string;
   bio: string;
   location: string;
   contactEmail: string;
@@ -22,6 +28,7 @@ interface FormState {
 function toFormState(profile: StudentProfile): FormState {
   return {
     fullName: profile.fullName,
+    jobTitle: profile.jobTitle ?? '',
     bio: profile.bio ?? '',
     location: profile.location ?? '',
     contactEmail: profile.contactEmail ?? '',
@@ -36,6 +43,9 @@ function validate(form: FormState): Partial<Record<keyof FormState, string>> {
   const name = form.fullName.trim();
   if (name.length < 2) errors.fullName = 'Enter your full name (at least 2 characters).';
   else if (name.length > 150) errors.fullName = 'Full name must be 150 characters or fewer.';
+  if (form.jobTitle.trim().length > JOB_TITLE_MAX_LENGTH) {
+    errors.jobTitle = 'Job title must be 100 characters or fewer.';
+  }
   if (form.bio.trim().length > 1000) errors.bio = 'Bio must be 1,000 characters or fewer.';
   if (form.location.trim().length > 150) {
     errors.location = 'Location must be 150 characters or fewer.';
@@ -84,6 +94,7 @@ function ProfileForm({ initial, token }: { initial: StudentProfile; token: strin
       // Empty optional fields are sent as null so the backend clears them.
       const updated = await myProfileApi.update(token, {
         fullName: form.fullName.trim(),
+        jobTitle: toNullable(form.jobTitle),
         bio: toNullable(form.bio),
         location: toNullable(form.location),
         contactEmail: toNullable(form.contactEmail),
@@ -129,6 +140,17 @@ function ProfileForm({ initial, token }: { initial: StudentProfile; token: strin
           maxLength={150}
           autoComplete="name"
           required
+        />
+        <TextField
+          id="profile-job-title"
+          label="Job title"
+          optional
+          value={form.jobTitle}
+          onChange={(event) => update('jobTitle', event.target.value)}
+          error={errors.jobTitle}
+          maxLength={JOB_TITLE_MAX_LENGTH}
+          placeholder="e.g. Backend Developer"
+          hint="Shown on your public profile and discovery card. Not required to publish."
         />
         <TextField
           id="profile-location"

@@ -217,6 +217,7 @@ describe('Public student discovery (e2e)', () => {
         [
           'id',
           'fullName',
+          'jobTitle',
           'bio',
           'location',
           'contactEmail',
@@ -302,6 +303,7 @@ describe('Public student discovery (e2e)', () => {
       [
         'id',
         'fullName',
+        'jobTitle',
         'bio',
         'location',
         'contactEmail',

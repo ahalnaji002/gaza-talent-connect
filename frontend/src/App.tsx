@@ -10,6 +10,9 @@ import { DashboardLayout } from './pages/dashboard/DashboardLayout';
 import { EditProfilePage } from './pages/dashboard/EditProfilePage';
 import { ProjectsPage } from './pages/dashboard/ProjectsPage';
 import { SkillsPage } from './pages/dashboard/SkillsPage';
+import { FeedbackPage } from './pages/dashboard/FeedbackPage';
+import { CompanyHome, CompanyLayout, SentFeedbackPage } from './pages/company/CompanyPages';
+import { CompanyRegisterPage } from './pages/company/CompanyRegisterPage';
 
 function NotFoundPage() {
   return (
@@ -36,12 +39,20 @@ export function App() {
         <Route path="students/:id" element={<StudentProfilePage />} />
         <Route path="login" element={<LoginPage />} />
         <Route path="register" element={<RegisterPage />} />
-        <Route element={<RequireAuth />}>
+        <Route path="register/company" element={<CompanyRegisterPage />} />
+        <Route element={<RequireAuth role="STUDENT" />}>
           <Route path="dashboard" element={<DashboardLayout />}>
             <Route index element={<DashboardHome />} />
             <Route path="profile" element={<EditProfilePage />} />
             <Route path="skills" element={<SkillsPage />} />
             <Route path="projects" element={<ProjectsPage />} />
+            <Route path="feedback" element={<FeedbackPage />} />
+          </Route>
+        </Route>
+        <Route element={<RequireAuth role="COMPANY" />}>
+          <Route path="company" element={<CompanyLayout />}>
+            <Route index element={<CompanyHome />} />
+            <Route path="feedback" element={<SentFeedbackPage />} />
           </Route>
         </Route>
         <Route path="*" element={<NotFoundPage />} />

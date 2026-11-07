@@ -45,6 +45,7 @@ export function DashboardHome() {
           <h1 id="dashboard-name" className="h2">
             {me.fullName}
           </h1>
+          {me.jobTitle && <p className="job-title">{me.jobTitle}</p>}
           {me.location && <p className="muted">{me.location}</p>}
           <p>
             <span className={`status-pill ${me.isPublic ? 'status-public' : 'status-hidden'}`}>

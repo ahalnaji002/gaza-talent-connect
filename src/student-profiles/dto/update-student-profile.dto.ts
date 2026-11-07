@@ -9,6 +9,7 @@ import {
   ValidateIf,
 } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 
 export class UpdateStudentProfileDto {
   @ApiPropertyOptional({
@@ -21,6 +22,23 @@ export class UpdateStudentProfileDto {
   @MinLength(2)
   @MaxLength(150)
   fullName?: string;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    maxLength: 100,
+    example: 'Backend Developer',
+    description:
+      'Surrounding whitespace is trimmed; an empty value or null clears the job title.',
+  })
+  @Transform(({ value }: { value: unknown }) => {
+    if (typeof value !== 'string') return value;
+    const trimmed = value.trim();
+    return trimmed === '' ? null : trimmed;
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  jobTitle?: string | null;
 
   @ApiPropertyOptional({
     nullable: true,

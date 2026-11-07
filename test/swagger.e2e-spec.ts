@@ -39,7 +39,7 @@ describe('Swagger / OpenAPI', () => {
     expect(response.text).toContain('<title>Gaza Talent Connect API</title>');
   });
 
-  it('documents exactly the 12 approved operations and correct access', async () => {
+  it('documents exactly the 19 approved operations and correct access', async () => {
     const response = await request(app.getHttpServer()).get('/api/docs-json');
 
     expect(response.status).toBe(200);
@@ -73,6 +73,12 @@ describe('Swagger / OpenAPI', () => {
       '/api/projects/{id}': ['patch', 'delete'],
       '/api/students': ['get'],
       '/api/students/{id}': ['get'],
+      '/api/auth/register/company': ['post'],
+      '/api/companies/me': ['get'],
+      '/api/feedback': ['post'],
+      '/api/feedback/sent': ['get'],
+      '/api/feedback/{id}': ['patch', 'delete'],
+      '/api/students/me/feedback': ['get'],
     };
     const actual = Object.fromEntries(
       Object.entries(document.paths).map(([path, pathItem]) => [
@@ -86,7 +92,7 @@ describe('Swagger / OpenAPI', () => {
     expect(actual).toEqual(expected);
     expect(
       Object.values(actual).reduce((sum, methods) => sum + methods.length, 0),
-    ).toBe(12);
+    ).toBe(19);
     expect(document.components.securitySchemes).toHaveProperty('bearer');
 
     const protectedOperations = [
@@ -97,6 +103,12 @@ describe('Swagger / OpenAPI', () => {
       ['/api/projects/me', 'get'],
       ['/api/projects/{id}', 'patch'],
       ['/api/projects/{id}', 'delete'],
+      ['/api/companies/me', 'get'],
+      ['/api/feedback', 'post'],
+      ['/api/feedback/sent', 'get'],
+      ['/api/feedback/{id}', 'patch'],
+      ['/api/feedback/{id}', 'delete'],
+      ['/api/students/me/feedback', 'get'],
     ] as const;
     for (const [path, method] of protectedOperations) {
       expect(document.paths[path][method].security).toEqual([{ bearer: [] }]);
@@ -108,6 +120,7 @@ describe('Swagger / OpenAPI', () => {
       ['/api/skills', 'get'],
       ['/api/students', 'get'],
       ['/api/students/{id}', 'get'],
+      ['/api/auth/register/company', 'post'],
     ] as const;
     for (const [path, method] of publicOperations) {
       expect(document.paths[path][method].security).toBeUndefined();
@@ -140,6 +153,7 @@ describe('Swagger / OpenAPI', () => {
       'githubUrl',
       'id',
       'isPublic',
+      'jobTitle',
       'location',
       'portfolioUrl',
       'skills',
@@ -147,5 +161,25 @@ describe('Swagger / OpenAPI', () => {
     expect(
       document.components.schemas.ProjectResponseDto.properties,
     ).not.toHaveProperty('studentProfileId');
+
+    // Private feedback is never part of public profile schemas.
+    for (const name of [
+      'StudentProfileResponseDto',
+      'PublicStudentDetailResponseDto',
+      'StudentDiscoveryResponseDto',
+    ]) {
+      expect(document.components.schemas[name].properties).not.toHaveProperty(
+        'feedback',
+      );
+    }
+    expect(
+      document.components.schemas.LoginResponseDto.properties,
+    ).toHaveProperty('role');
+    expect(
+      Object.keys(
+        document.components.schemas.ReceivedFeedbackResponseDto.properties ??
+          {},
+      ).sort(),
+    ).toEqual(['company', 'createdAt', 'id', 'message', 'updatedAt']);
   });
 });

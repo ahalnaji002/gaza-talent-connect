@@ -128,6 +128,18 @@ Project creation requires `title` (3–150 characters). `description` is optiona
 
 `GET /api/students/:id` uses the **student profile ID**, not the account user ID. It returns the public profile, skills, and projects. Both discovery routes include only profiles with `isPublic: true` and a valid contact email. Hidden or nonexistent detail returns `404`; invalid IDs, skill UUIDs, or pagination values return `400`.
 
+## Optional frontend
+
+The `frontend/` folder contains a React + TypeScript (Vite) web app that uses these endpoints for talent discovery, public profiles, registration and login, and student profile, skill and project management. With the API running, start it in a second terminal:
+
+```powershell
+cd frontend
+npm ci
+npm run dev
+```
+
+Then open <http://localhost:5173>. The Vite dev server proxies `/api` to `http://localhost:3000`, so no backend CORS configuration is needed. See [`frontend/README.md`](frontend/README.md) for configuration, pages, and known limitations. The backend TypeScript configs exclude `frontend/` so `npm run build` and the backend tests are unaffected.
+
 ## Tests
 
 Run unit tests:

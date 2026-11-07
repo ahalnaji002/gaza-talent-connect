@@ -1,154 +1,163 @@
 # Gaza Talent Connect
 
-## Project Overview
+Gaza Talent Connect is a NestJS backend API for student accounts, profiles, skills, and projects. Students manage their own data; visitors can discover only profiles that students have made public. Company accounts and messaging are outside the current MVP.
 
-Gaza Talent Connect is a backend API built with NestJS, TypeScript, PostgreSQL, and Prisma. The currently implemented endpoints support student registration, JWT login, authenticated profile, skill, and project management, and public discovery of published student profiles. Company accounts and messaging are outside the current scope.
+## Implemented scope
 
-## Features
+- Authentication with JWT access tokens.
+- Authenticated read and update of a student's own profile and selected skills.
+- A public, read-only predefined skills catalog.
+- Authenticated create, list, update, and delete operations for a student's own projects.
+- Public discovery and detail views for profiles that are public and have a valid contact email.
+- Interactive Swagger UI and an OpenAPI JSON document.
 
-- Student registration and JWT login.
-- Read and update the authenticated student's own profile.
-- Replace the authenticated student's selected skills from the predefined catalog.
-- Create, list, update, and delete the authenticated student's projects.
-- Public read-only catalog of predefined skills.
-- Public discovery of published student profiles by skills.
-- Public details for published profiles, including their skills and projects.
-- Profiles are hidden by default. Publishing requires a valid contact email; the private account email is not returned by profile routes.
-- Profile skills are returned as `{ id, name }` objects.
+Public profile routes return the explicitly supplied `contactEmail`; they never return the private account email or password hash. Profiles start hidden. A profile can be published only when its contact email is valid. Public profile detail includes skills and projects; the discovery list includes skills.
 
-### Read your profile
+## Technology
 
-```http
-GET /api/students/me
-Authorization: Bearer <accessToken>
-```
+- Node.js, TypeScript, and NestJS 11
+- PostgreSQL and Prisma 7 with the PostgreSQL driver adapter
+- Passport JWT and `@nestjs/jwt`
+- `class-validator` / `class-transformer`
+- `@nestjs/swagger` for OpenAPI documentation and Swagger UI
+- Jest and Supertest
 
-The response contains `id`, `fullName`, `bio`, `location`, `contactEmail`, `githubUrl`, `portfolioUrl`, `isPublic`, and `skills`. Nullable profile fields are returned as `null`; `skills` is an empty array when the student has no skills. This route also returns the owner's profile while it is hidden.
+## Prerequisites
 
-### Update your profile
+- Node.js 20.19+, 22.12+, or 24+
+- npm
+- A PostgreSQL server you can create local databases in
 
-```http
-PATCH /api/students/me
-Authorization: Bearer <accessToken>
-Content-Type: application/json
-```
+## Install and configure
 
-All supported fields are optional: `fullName`, `bio`, `location`, `contactEmail`, `githubUrl`, `portfolioUrl`, and `isPublic`. Nullable fields (`bio`, `location`, `contactEmail`, `githubUrl`, and `portfolioUrl`) can be cleared with `null`; `fullName` and `isPublic` cannot be `null`. GitHub URLs must use HTTPS. Portfolio URLs may use HTTP or HTTPS. When the resulting profile is public, `contactEmail` must be valid and present. A profile can be hidden and its contact email cleared in the same request.
-
-Example request:
-
-```json
-{
-  "bio": "Backend developer",
-  "location": "Gaza",
-  "contactEmail": "student@example.com",
-  "githubUrl": "https://github.com/student",
-  "portfolioUrl": null,
-  "isPublic": false
-}
-```
-
-Successful updates return `200` with the same profile shape as `GET /api/students/me`. Requests without a valid JWT return `401`; a missing profile returns `404`; invalid fields or publication state return `400`.
-
-### List predefined skills
-
-```http
-GET /api/skills
-```
-
-This public endpoint does not require a JWT. It returns `200` with a direct array of `{ id, name }` objects ordered by `name` and then `id`; it returns `[]` when the catalog is empty. The API does not create, update, or delete catalog skills.
-
-### Replace your skills
-
-```http
-PUT /api/students/me/skills
-Authorization: Bearer <accessToken>
-Content-Type: application/json
-```
-
-Send `{ "skillIds": ["uuid-1", "uuid-2"] }` to replace the complete skill list for the authenticated student's profile. The array accepts 0–20 distinct UUIDs that exist in the catalog; send `[]` to clear all assigned skills. A successful request returns `200` with the resulting array of `{ id, name }` skills. Missing or invalid JWT returns `401`; a missing student profile returns `404`; invalid input or unknown skill IDs returns `400`. The operation is atomic, and students cannot modify the shared catalog.
-
-### Manage your projects
-
-All project routes require a JWT. A project is assigned to the authenticated student's profile; clients cannot choose or change its owner.
-
-```http
-POST /api/projects
-GET /api/projects/me
-PATCH /api/projects/<project-id>
-DELETE /api/projects/<project-id>
-Authorization: Bearer <accessToken>
-```
-
-Create a project with a required `title` (3–150 characters) and optional `description` (up to 2,000 characters), `githubUrl` (HTTPS), and `demoUrl` (HTTP or HTTPS). URL values are limited to 2,048 characters by the database fields. `POST` returns `201` with the project; `GET` returns the authenticated student's projects newest first; `PATCH` accepts partial updates and returns `200`; `DELETE` returns `204` with no body. Nullable fields `description`, `githubUrl`, and `demoUrl` can be set to `null` in `PATCH` to clear them. Missing or non-owned project IDs return `404`; invalid input and malformed UUIDs return `400`; missing or invalid JWT returns `401`.
-
-### Discover public students
-
-```http
-GET /api/students?skillIds=<uuid>,<uuid>&page=1&limit=10
-GET /api/students/<profile-id>
-```
-
-These routes are public and do not require a JWT. The list endpoint matches a profile when it has **any** requested skill, ranks profiles by matching-skill count descending, then `fullName` and profile `id`, and paginates after ranking. Without `skillIds`, it lists all eligible profiles ordered by `fullName` and `id`. `page` defaults to `1`; `limit` defaults to `10` and accepts `1–50`.
-
-The list response is `{ "data": [...], "meta": { "page", "limit", "total", "totalPages" } }`. Each item contains `id`, `fullName`, `bio`, `location`, `contactEmail`, `githubUrl`, `portfolioUrl`, `isPublic`, and `skills` (`{ id, name }`). Public detail uses the student profile ID and adds `projects` (`id`, `title`, `description`, `githubUrl`, `demoUrl`, `createdAt`, `updatedAt`). Only profiles with `isPublic: true` and a valid `contactEmail` are returned. Account email and password data are never exposed. Hidden or nonexistent profile details return `404`; malformed IDs, skill UUIDs, or pagination values return `400`.
-
-## Setup
-
-Install dependencies:
-
-```bash
-npm install
-```
-
-Configure `DATABASE_URL` with the PostgreSQL connection string and `JWT_SECRET` with a private signing secret in the runtime environment. Ensure the database schema has been set up before starting the API.
-
-The initial skill catalog is installed manually; application startup and `GET /api/skills` never run the seed. Verify that `DATABASE_URL` targets the database you intend to seed, then set the confirmation to that database's exact name. For example, for the isolated test database:
+From the repository root:
 
 ```powershell
-$env:SKILLS_SEED_CONFIRM_DATABASE = "gaza_talent_connect_test"
+npm ci
+Copy-Item .env.example .env
+```
+
+Edit `.env` and replace the placeholders. `DATABASE_URL` must point to the local development database; `JWT_SECRET` must be a private signing secret. `PORT` is optional and defaults to `3000`. Do not commit `.env`.
+
+Generate the Prisma Client after installing dependencies:
+
+```powershell
+npx prisma generate
+```
+
+The generated client is written to `generated/prisma`, which is ignored by Git and must be regenerated after a clean install.
+
+## PostgreSQL setup and migrations
+
+Create the development database, then confirm `DATABASE_URL` in `.env` names that database:
+
+```powershell
+createdb gaza_talent_connect
+npx prisma migrate deploy
+```
+
+`migrate deploy` applies the checked-in migrations; it does not create a database. Run it only after verifying `DATABASE_URL`. The current schema is in `prisma/schema.prisma`, and the initial migration is in `prisma/migrations/`.
+
+## Optional initial skills catalog
+
+Seeding is manual and optional. It does not run at application startup or through `GET /api/skills`. First verify that `DATABASE_URL` points to the intended database, then set the confirmation to that database's exact name for this command only:
+
+```powershell
+$env:SKILLS_SEED_CONFIRM_DATABASE = "gaza_talent_connect"
 npm run db:seed
 Remove-Item Env:SKILLS_SEED_CONFIRM_DATABASE
 ```
 
-The seed checks PostgreSQL's actual `current_database()` against `SKILLS_SEED_CONFIRM_DATABASE` and aborts before inserting if they differ. Do not confirm a development or production database without separate approval. The seed is repeatable and does not delete skills or student-skill links.
+The seed checks PostgreSQL's actual `current_database()` before inserting. It is repeatable and does not delete or rename existing skills or remove student-skill links. Do not confirm a development or production database without separate approval.
 
 Initial catalog: JavaScript, TypeScript, Python, Java, C++, React, Next.js, Node.js, NestJS, PostgreSQL, MySQL, HTML, CSS, Git, Docker.
 
-Start the API:
+## Start the API and open documentation
 
-```bash
+```powershell
 npm run start:dev
 ```
 
-The API listens on port `3000` by default and uses the `/api` prefix.
+The API uses the `/api` prefix and listens on port `3000` by default. While it is running:
 
-Interactive OpenAPI documentation is available at `http://localhost:3000/api/docs`.
+- Swagger UI: <http://localhost:3000/api/docs>
+- OpenAPI JSON: <http://localhost:3000/api/docs-json>
 
-## Dependencies
+## API endpoints
 
-- NestJS 11 and TypeScript
-- Prisma 7 and PostgreSQL
-- Passport JWT and `@nestjs/jwt`
-- `@nestjs/swagger` for OpenAPI documentation and Swagger UI
-- `class-validator` and `class-transformer`
-- Jest and Supertest for tests
+All routes below include the `/api` prefix. “JWT” means the request must include `Authorization: Bearer <accessToken>`.
 
-No dependency was added for the profile or skills catalog endpoints.
+| Method | Endpoint                  | Access | Success                                          |
+| ------ | ------------------------- | ------ | ------------------------------------------------ |
+| POST   | `/api/auth/register`      | Public | `201`, safe account/profile summary              |
+| POST   | `/api/auth/login`         | Public | `200`, JWT access token                          |
+| GET    | `/api/students/me`        | JWT    | `200`, own profile, including while hidden       |
+| PATCH  | `/api/students/me`        | JWT    | `200`, updated own profile                       |
+| GET    | `/api/skills`             | Public | `200`, `{id,name}` array ordered by name then ID |
+| PUT    | `/api/students/me/skills` | JWT    | `200`, replaced `{id,name}` skill array          |
+| POST   | `/api/projects`           | JWT    | `201`, created project                           |
+| GET    | `/api/projects/me`        | JWT    | `200`, own projects newest first                 |
+| PATCH  | `/api/projects/:id`       | JWT    | `200`, updated owned project                     |
+| DELETE | `/api/projects/:id`       | JWT    | `204`, no response body                          |
+| GET    | `/api/students`           | Public | `200`, `{data,meta}` discovery response          |
+| GET    | `/api/students/:id`       | Public | `200`, published profile detail                  |
+
+### Authentication
+
+Registration accepts `fullName` (2–150 characters), `email` (valid, up to 255 characters), and `password` (8–72 UTF-8 bytes, with at least one English letter and one number). The account email is normalized to lowercase. Registration returns a safe summary and creates a hidden profile. A duplicate email returns `409`.
+
+Login accepts `email` and `password`; invalid credentials return `401`. The current login DTO enforces a maximum of 72 UTF-8 password bytes; short or otherwise incorrect credentials are rejected by authentication with `401`. A successful response contains `accessToken`, `tokenType: "Bearer"`, and `expiresIn: 3600`. There is no refresh-token endpoint in this MVP.
+
+### Student profiles and skills
+
+`GET /api/students/me` returns `id`, `fullName`, `bio`, `location`, `contactEmail`, `githubUrl`, `portfolioUrl`, `isPublic`, and `skills`. Nullable fields appear as `null`; skills are `{id,name}` objects and are empty when none are assigned.
+
+`PATCH /api/students/me` accepts optional `fullName` (2–150), `bio` (up to 1,000), `location` (up to 150), `contactEmail` (valid email, up to 255), `githubUrl` (HTTPS, up to 2,048), `portfolioUrl` (HTTP/HTTPS, up to 2,048), and `isPublic` (boolean). Optional nullable fields can be cleared with `null`, except `fullName` and `isPublic`. The resulting profile must have a valid contact email to be public; it can be hidden and have its contact email cleared in the same request. Invalid input or publication state returns `400`; missing profile returns `404`.
+
+`PUT /api/students/me/skills` accepts `{ "skillIds": ["uuid", "uuid"] }`, with 0–20 distinct UUIDs that exist in the catalog. Sending `[]` clears the student's skills. Replacement is atomic; invalid or unknown IDs return `400`. Students cannot create or modify catalog entries.
+
+`GET /api/skills` is public and returns `[]` if the catalog is empty.
+
+### Projects
+
+Project creation requires `title` (3–150 characters). `description` is optional and up to 2,000 characters; `githubUrl` must use HTTPS and `demoUrl` may use HTTP or HTTPS. URL fields are limited to 2,048 characters. PATCH accepts partial changes and can clear nullable fields with `null`. Clients cannot choose or change the owner. Updating or deleting a nonexistent or non-owned project returns `404`; malformed IDs return `400`.
+
+### Public student discovery
+
+`GET /api/students` accepts optional comma-separated `skillIds` and pagination parameters `page` (default `1`, minimum `1`) and `limit` (default `10`, range `1–50`). A profile matches any requested skill. Results rank by matching-skill count descending, then full name and profile ID, and are paginated after ranking. The response is `{ "data": [...], "meta": { "page", "limit", "total", "totalPages" } }`.
+
+`GET /api/students/:id` uses the **student profile ID**, not the account user ID. It returns the public profile, skills, and projects. Both discovery routes include only profiles with `isPublic: true` and a valid contact email. Hidden or nonexistent detail returns `404`; invalid IDs, skill UUIDs, or pagination values return `400`.
 
 ## Tests
 
 Run unit tests:
 
-```bash
+```powershell
 npm test -- --runInBand
 ```
 
-Run E2E tests through the repository's safety-checked runner:
+E2E tests require a separate PostgreSQL database named exactly `gaza_talent_connect_test`; do not use the development database. Create it once and apply the checked-in migration to it explicitly:
 
-```bash
-$env:TEST_DATABASE_URL = "<PostgreSQL URL for gaza_talent_connect_test>"
-npm run test:e2e
+```powershell
+createdb gaza_talent_connect_test
+$env:DATABASE_URL = "postgresql://postgres:REPLACE_WITH_LOCAL_PASSWORD@localhost:5432/gaza_talent_connect_test?schema=public"
+npx prisma migrate deploy
+Remove-Item Env:DATABASE_URL
 ```
 
-The runner rejects URLs whose database name is not `gaza_talent_connect_test`. Do not run E2E tests against the development database.
+Set `TEST_DATABASE_URL` in the current PowerShell process to that test database URL, then run the safe runner:
+
+```powershell
+$env:TEST_DATABASE_URL = "postgresql://postgres:REPLACE_WITH_LOCAL_PASSWORD@localhost:5432/gaza_talent_connect_test?schema=public"
+npm run test:e2e
+Remove-Item Env:TEST_DATABASE_URL
+```
+
+The runner rejects any URL whose database name is not `gaza_talent_connect_test` and passes the verified test URL to Jest as `DATABASE_URL`. E2E tests must not be run against the development database.
+
+## Evaluation walkthrough
+
+1. Install dependencies, copy `.env.example` to `.env`, and set local database and JWT values.
+2. Run `npx prisma generate`, apply migrations to the development database, and optionally run the guarded skills seed.
+3. Start the API with `npm run start:dev` and inspect all documented routes at `/api/docs`.
+4. Register a demo student, log in to obtain a bearer token, and use the protected profile, skills, and project operations in Swagger. To test public discovery, set a valid contact email and explicitly publish that profile first.

@@ -6,8 +6,7 @@ import {
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
-import { SkillResponseDto } from '../swagger-responses';
-import { ApiErrorResponseDto } from '../swagger-responses';
+import { ApiErrorResponseDto, SkillResponseDto } from '../swagger-responses';
 
 @Controller('skills')
 @ApiTags('Skills')

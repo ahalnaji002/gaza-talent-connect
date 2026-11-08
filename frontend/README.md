@@ -13,7 +13,8 @@ state-management library.
 
 ## Prerequisites
 
-- Node.js 20.19+, 22.12+ or 24+
+- Node.js 22.13+ or 24 (`package.json` declares `^22.13.0 || ^24.0.0 || >=26.0.0`, the range Vitest
+  and ESLint support)
 - The backend API from the repository root, configured and running (see the root `README.md`).
 
 ## Install
@@ -36,10 +37,14 @@ Copy-Item .env.example .env
 | `VITE_API_BASE_URL`     | `/api`                  | Base URL the browser uses for API calls.                                                    |
 | `VITE_DEV_PROXY_TARGET` | `http://localhost:3000` | Where the Vite dev and preview servers forward `/api` requests.                             |
 
-With the default `/api`, the browser calls the Vite server, which proxies to the backend. The
-backend therefore needs no CORS configuration. If you set `VITE_API_BASE_URL` to an absolute URL
-on another origin (for example `http://localhost:3000/api`), the backend must allow that origin
-via CORS, which it currently does not.
+With the default `/api`, the browser calls the Vite server, which proxies to the backend, so
+locally no CORS configuration is needed.
+
+For a production build hosted on its own domain, set `VITE_API_BASE_URL` at build time to the
+API's public URL, for example `https://your-api.example.com/api`. Then add the frontend's exact
+origin (for example `https://your-frontend.example.com`) to the backend's `CORS_ORIGIN`. Without
+`NODE_ENV=production`, the backend already allows `http://localhost:5173`, `http://127.0.0.1:5173`
+and the matching `4173` preview origins.
 
 ## Run (development)
 
@@ -136,9 +141,13 @@ session ends automatically when the token expires, when the API answers `401`, o
 
 ## Known limitations
 
-- **Hosting:** the app relies on the Vite dev/preview proxy. A production deployment needs a
-  reverse proxy that forwards `/api` to the backend, or CORS enabled on the backend. Either way the
-  host must serve `index.html` for client-side routes.
+- **Hosting:** a static host needs two things:
+  - The production build pointed at the API with `VITE_API_BASE_URL`, and the frontend's origin
+    listed in the backend's `CORS_ORIGIN`. A reverse proxy for `/api` also works.
+  - A rewrite of client-side routes such as `/students/:id` to `index.html`.
+- **Rate limits:** the backend answers `429` when a limit is exceeded, for example after 10 login
+  attempts in 15 minutes. The app shows the server's message ("Too many requests. Please wait and
+  try again.").
 - **Token storage:** the token lives in `localStorage`, which is readable by any script on the page.
   A production setup would prefer an httpOnly cookie. There is no refresh token; students log in
   again after the 1-hour expiry.

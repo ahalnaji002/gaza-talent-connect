@@ -1,24 +1,22 @@
-import { ValidationPipe } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { setupSwagger } from './swagger';
+import { configureApp } from './app.setup';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  const summary = configureApp(app);
 
-  app.setGlobalPrefix('api');
+  const port = process.env.PORT ?? 3000;
+  await app.listen(port);
 
-  setupSwagger(app);
-
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-      forbidNonWhitelisted: true,
-      transform: true,
-    }),
+  // Configuration summary only: never log secrets or connection strings.
+  new Logger('Bootstrap').log(
+    `Listening on port ${port} | environment=${summary.environment} | ` +
+      `CORS origins=${summary.corsOrigins.join(', ')} | ` +
+      `Swagger=${summary.swaggerEnabled ? 'enabled' : 'disabled'} | ` +
+      `client IP source=${summary.clientIpHeader ?? 'TCP peer address'}`,
   );
-
-  await app.listen(process.env.PORT ?? 3000);
 }
 
 void bootstrap();

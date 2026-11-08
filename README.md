@@ -26,7 +26,7 @@ Public profile routes return the explicitly supplied `contactEmail`; they never 
 
 ## Prerequisites
 
-- Node.js 20.19+, 22.12+, or 24+
+- Node.js 22 LTS (22.13+) or 24, which satisfies both packages. `package.json` declares the backend range `^20.19.0 || ^22.12.0 || >=24.0.0` (Prisma 7 and `@nestjs/throttler`); `frontend/package.json` declares `^22.13.0 || ^24.0.0 || >=26.0.0` (Vitest and ESLint).
 - npm
 - A PostgreSQL server you can create local databases in
 
@@ -39,7 +39,7 @@ npm ci
 Copy-Item .env.example .env
 ```
 
-Edit `.env` and replace the placeholders. `DATABASE_URL` must point to the local development database; `JWT_SECRET` must be a private signing secret. `PORT` is optional and defaults to `3000`. Do not commit `.env`.
+Edit `.env` and replace the placeholders. `DATABASE_URL` must point to the local development database; `JWT_SECRET` must be a private signing secret. `PORT` is optional and defaults to `3000`. Leave `NODE_ENV`, `CORS_ORIGIN`, `SWAGGER_ENABLED` and `CLIENT_IP_HEADER` unset locally: the defaults allow the local Vite frontend and keep Swagger enabled. Do not commit `.env`. Production settings are described in [Production configuration and security](#production-configuration-and-security).
 
 Generate the Prisma Client after installing dependencies:
 
@@ -102,6 +102,85 @@ The API uses the `/api` prefix and listens on port `3000` by default. While it i
 
 - Swagger UI: <http://localhost:3000/api/docs>
 - OpenAPI JSON: <http://localhost:3000/api/docs-json>
+
+Swagger is enabled by default only outside production (see `SWAGGER_ENABLED` below). At startup the API logs a one-line configuration summary: environment, allowed CORS origins, Swagger state and client-IP source. It never logs secrets or connection strings.
+
+## Production configuration and security
+
+### Environment variables
+
+| Variable           | Required in production  | Purpose                                                                                                                                                                                                                                                        |
+| ------------------ | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NODE_ENV`         | Yes (`production`)      | Turns on the production rules below.                                                                                                                                                                                                                           |
+| `DATABASE_URL`     | Yes                     | PostgreSQL connection URL. Use `sslmode=verify-full` for hosted databases.                                                                                                                                                                                     |
+| `JWT_SECRET`       | Yes                     | HS256 signing secret. Production refuses to start if it is shorter than 32 characters or still contains the `.env.example` placeholder. It is never logged.                                                                                                    |
+| `CORS_ORIGIN`      | Yes                     | Comma-separated exact frontend origins, such as `https://app.example.com`. Production refuses to start if it is missing or contains a wildcard, a path or a non-`https` origin.                                                                                |
+| `SWAGGER_ENABLED`  | No                      | `true` or `false`. Defaults to `false` in production (the `/api/docs` routes return `404`) and to `true` elsewhere. Any other value stops startup.                                                                                                             |
+| `CLIENT_IP_HEADER` | Yes on Render           | `cf-connecting-ip` (the only supported value) to rate-limit by the client IP that Cloudflare reports. Allowed only with `NODE_ENV=production` and `RENDER=true` (set by Render); otherwise startup fails. `X-Forwarded-For` and `True-Client-IP` are rejected. |
+| `RENDER`           | Set by Render           | Render sets it to `true` automatically. Required for `CLIENT_IP_HEADER`; do not set it manually elsewhere.                                                                                                                                                     |
+| `PORT`             | Usually set by the host | Listening port; defaults to `3000`. The server binds to all interfaces.                                                                                                                                                                                        |
+
+`TEST_DATABASE_URL`, `SKILLS_SEED_CONFIRM_DATABASE` and the frontend's `VITE_DEV_PROXY_TARGET` are not used by the running production API.
+
+### CORS
+
+- Only origins listed in `CORS_ORIGIN` receive `Access-Control-Allow-Origin`, compared by exact match after normalising case and trailing slashes. Any other origin gets no CORS headers, so browsers block it.
+- Preflight `OPTIONS` requests return `204` and allow `GET, POST, PUT, PATCH, DELETE`, the `Authorization` and `Content-Type` headers, and a 10-minute cache.
+- Credentials (cookies) are not allowed; the API uses bearer tokens.
+- Without `NODE_ENV=production` and with `CORS_ORIGIN` unset, the local Vite origins `http://localhost:5173`, `http://127.0.0.1:5173`, `http://localhost:4173` and `http://127.0.0.1:4173` are allowed.
+- CORS is not authorization: protected routes still require a valid token and role.
+
+### Rate limits
+
+`@nestjs/throttler` runs as a global guard and counts requests per client:
+
+| Scope                                                           | Limit                           |
+| --------------------------------------------------------------- | ------------------------------- |
+| Every API route (default)                                       | 120 requests per minute         |
+| `POST /api/auth/login`                                          | 10 requests per 15 minutes      |
+| `POST /api/auth/register` and `POST /api/auth/register/company` | 5 requests per hour, each route |
+| `POST /api/feedback`                                            | 20 requests per hour            |
+| `GET /api` (static health check)                                | Not limited                     |
+
+- **Exceeded limits:** a request over the limit returns `429` with a `Retry-After` header. Responses also carry `X-RateLimit-Limit`, `X-RateLimit-Remaining` and `X-RateLimit-Reset`.
+- **What counts:** limits run before authentication and validation, so failed and invalid attempts count too.
+- **Memory only:** counters live in each instance's memory. They are not shared between instances and reset when the process restarts or sleeps; a free single instance accepts this. Multiple instances would need shared storage such as Redis.
+- **Automated tests:** limits are skipped only when `NODE_ENV=test`, which the E2E runner sets for the functional suites. The security suite enables them explicitly.
+
+### Client IP and reverse proxies
+
+Express `trust proxy` stays off, and `X-Forwarded-For` is never used, because proxies such as Render's append to it rather than replace it, so clients can forge its entries.
+
+- **Default:** without `CLIENT_IP_HEADER`, the limiter uses the TCP peer address and ignores every client-supplied forwarding header.
+- **Render production setting:** behind Render, every request arrives from Render's proxy, so with the default all clients would share one bucket. On a **public Render web service**, set `NODE_ENV=production` and `CLIENT_IP_HEADER=cf-connecting-ip`. Render sets `RENDER=true` itself. Render documents that public web-service traffic passes through Cloudflare, which writes `CF-Connecting-IP` on every request and overwrites any value the caller sent.
+- **Where the header is allowed:** `cf-connecting-ip` is the only accepted value, and only when `NODE_ENV=production` and `RENDER=true`. In any other environment, or in production without `RENDER=true`, the API refuses to start. This prevents the header from being enabled by accident locally or on another host.
+- **Rejected values:** `X-Forwarded-For` is rejected because clients control its leftmost entries. `True-Client-IP` is rejected because Render does not document that it is overwritten, so a value sent by the client could reach the API unchanged.
+- **Missing or malformed values:** the header is used only if it contains exactly one valid IP. Otherwise the peer address is used, so missing or malformed values cannot be rotated to get fresh limits.
+- **IPv6:** clients are grouped by `/64`.
+- **Limitation:** `RENDER=true` is a configuration guard, not proof that a request passed through Cloudflare. Anyone who can set environment variables can set it. If the API can be reached directly, without Render's edge in front, clients can choose the `CF-Connecting-IP` value and get separate rate-limit budgets. Never enable the trusted header on a directly reachable or otherwise untrusted deployment; leave it unset there, which is always safe but makes all clients behind one proxy share a budget.
+
+### Security headers
+
+`helmet` sets standard headers on every response:
+
+- `Content-Security-Policy` (default `'self'` policy, compatible with the bundled Swagger UI).
+- `Strict-Transport-Security`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy: no-referrer` and the cross-origin isolation headers.
+- `X-Powered-By` is removed.
+- `upgrade-insecure-requests` is added only in production, so local Swagger over `http` keeps working.
+
+### Production build and start
+
+```bash
+npm ci
+npx prisma generate
+npx prisma migrate deploy
+npm run build
+npm run start:prod
+```
+
+- Install dev dependencies during the build: the `prisma` CLI and `dotenv` used by `prisma7.config.ts` are dev dependencies.
+- `npm run start:prod` runs `node dist/src/main.js`.
+- The frontend is built separately with `VITE_API_BASE_URL` set to the API's public `/api` URL (see `frontend/README.md`).
 
 ## API endpoints
 

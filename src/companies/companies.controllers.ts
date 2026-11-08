@@ -25,9 +25,12 @@ import {
   ApiOperation,
   ApiParam,
   ApiTags,
+  ApiTooManyRequestsResponse,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { UserRole } from '../../generated/prisma/client';
+import { RATE_LIMITS } from '../config/runtime-config';
 import type { AuthenticatedRequest } from '../auth/authenticated-user';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
@@ -86,6 +89,8 @@ export class CompanyFeedbackController {
   constructor(private readonly feedbackService: CompanyFeedbackService) {}
 
   @Post()
+  @Throttle({ default: RATE_LIMITS.feedback })
+  @ApiTooManyRequestsResponse({ type: ApiErrorResponseDto })
   @ApiOperation({
     summary: 'Write private feedback for a published student profile',
     description:

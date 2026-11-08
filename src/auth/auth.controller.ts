@@ -1,4 +1,6 @@
 import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
+import { RATE_LIMITS } from '../config/runtime-config';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { RegisterCompanyDto } from './dto/register-company.dto';
@@ -11,6 +13,7 @@ import {
   ApiOkResponse,
   ApiOperation,
   ApiTags,
+  ApiTooManyRequestsResponse,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import {
@@ -27,6 +30,8 @@ export class AuthController {
 
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
+  @Throttle({ default: RATE_LIMITS.registration })
+  @ApiTooManyRequestsResponse({ type: ApiErrorResponseDto })
   @ApiOperation({ summary: 'Register a student account and private profile' })
   @ApiCreatedResponse({ type: RegisterResponseDto })
   @ApiBadRequestResponse({ type: ApiErrorResponseDto })
@@ -41,6 +46,8 @@ export class AuthController {
 
   @Post('register/company')
   @HttpCode(HttpStatus.CREATED)
+  @Throttle({ default: RATE_LIMITS.registration })
+  @ApiTooManyRequestsResponse({ type: ApiErrorResponseDto })
   @ApiOperation({
     summary: 'Register a company account',
     description:
@@ -59,6 +66,8 @@ export class AuthController {
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
+  @Throttle({ default: RATE_LIMITS.login })
+  @ApiTooManyRequestsResponse({ type: ApiErrorResponseDto })
   @ApiOperation({
     summary: 'Authenticate a student or company and receive a JWT access token',
   })

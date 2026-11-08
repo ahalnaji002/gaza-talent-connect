@@ -7,6 +7,10 @@ import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { JwtStrategy } from './jwt.strategy';
 import { RolesGuard } from './roles.guard';
+import {
+  resolveEnvironment,
+  validateJwtSecret,
+} from '../config/runtime-config';
 
 @Module({
   imports: [
@@ -14,11 +18,11 @@ import { RolesGuard } from './roles.guard';
     JwtModule.registerAsync({
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => {
-        const secret = configService.get<string>('JWT_SECRET');
-
-        if (!secret || secret.trim().length === 0) {
-          throw new Error('JWT_SECRET is not configured');
-        }
+        // Production requires a strong secret; the value is never logged.
+        const secret = validateJwtSecret(
+          configService.get<string>('JWT_SECRET'),
+          resolveEnvironment(configService.get<string>('NODE_ENV')),
+        );
 
         return {
           secret,

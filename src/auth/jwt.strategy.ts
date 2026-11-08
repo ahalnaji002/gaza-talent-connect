@@ -4,6 +4,10 @@ import { PassportStrategy } from '@nestjs/passport';
 import { isUUID } from 'class-validator';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { PrismaService } from '../prisma/prisma.service';
+import {
+  resolveEnvironment,
+  validateJwtSecret,
+} from '../config/runtime-config';
 import { AuthenticatedUser } from './authenticated-user';
 
 interface JwtPayload {
@@ -18,11 +22,10 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     configService: ConfigService,
     private readonly prisma: PrismaService,
   ) {
-    const secret = configService.get<string>('JWT_SECRET');
-
-    if (!secret || secret.trim().length === 0) {
-      throw new Error('JWT_SECRET is not configured');
-    }
+    const secret = validateJwtSecret(
+      configService.get<string>('JWT_SECRET'),
+      resolveEnvironment(configService.get<string>('NODE_ENV')),
+    );
 
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),

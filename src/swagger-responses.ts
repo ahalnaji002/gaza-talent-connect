@@ -1,4 +1,5 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiResponseOptions } from '@nestjs/swagger';
+import { RATE_LIMITS } from './config/runtime-config';
 
 export class SkillResponseDto {
   @ApiProperty({
@@ -99,25 +100,26 @@ export class StudentProfileResponseDto {
   fullName!: string;
 
   @ApiProperty({
+    type: String,
     nullable: true,
     maxLength: 100,
     example: 'Backend Developer',
   })
   jobTitle!: string | null;
 
-  @ApiProperty({ nullable: true, example: null })
+  @ApiProperty({ type: String, nullable: true, example: null })
   bio!: string | null;
 
-  @ApiProperty({ nullable: true, example: null })
+  @ApiProperty({ type: String, nullable: true, example: null })
   location!: string | null;
 
-  @ApiProperty({ nullable: true, format: 'email', example: null })
+  @ApiProperty({ type: String, nullable: true, format: 'email', example: null })
   contactEmail!: string | null;
 
-  @ApiProperty({ nullable: true, format: 'uri', example: null })
+  @ApiProperty({ type: String, nullable: true, format: 'uri', example: null })
   githubUrl!: string | null;
 
-  @ApiProperty({ nullable: true, format: 'uri', example: null })
+  @ApiProperty({ type: String, nullable: true, format: 'uri', example: null })
   portfolioUrl!: string | null;
 
   @ApiProperty({ example: false })
@@ -137,13 +139,13 @@ export class ProjectResponseDto {
   @ApiProperty({ example: 'Portfolio Website' })
   title!: string;
 
-  @ApiProperty({ nullable: true, example: null })
+  @ApiProperty({ type: String, nullable: true, example: null })
   description!: string | null;
 
-  @ApiProperty({ nullable: true, format: 'uri', example: null })
+  @ApiProperty({ type: String, nullable: true, format: 'uri', example: null })
   githubUrl!: string | null;
 
-  @ApiProperty({ nullable: true, format: 'uri', example: null })
+  @ApiProperty({ type: String, nullable: true, format: 'uri', example: null })
   demoUrl!: string | null;
 
   @ApiProperty({ format: 'date-time', example: '2026-01-01T12:00:00.000Z' })
@@ -269,3 +271,54 @@ export class ApiErrorResponseDto {
   @ApiProperty()
   error!: string;
 }
+
+// ---------------------------------------------------------------------------
+// HTTP 429 documentation, generated from the enforced throttler settings so
+// the documented limits always match RATE_LIMITS.
+// ---------------------------------------------------------------------------
+
+type RateLimit = { ttl: number; limit: number };
+
+/** Human-readable limit, for example "10 requests per 15 minutes". */
+export function describeRateLimit({ ttl, limit }: RateLimit): string {
+  const minutes = ttl / 60_000;
+  const window =
+    minutes === 1
+      ? 'minute'
+      : minutes % 60 === 0
+        ? minutes === 60
+          ? 'hour'
+          : `${minutes / 60} hours`
+        : `${minutes} minutes`;
+  return `${limit} requests per ${window}`;
+}
+
+function tooManyRequests(reason: string): ApiResponseOptions {
+  return {
+    type: ApiErrorResponseDto,
+    description: `${reason} Wait for the number of seconds in the Retry-After header before retrying.`,
+    headers: {
+      'Retry-After': {
+        description: 'Seconds to wait before the next request is accepted.',
+        schema: { type: 'integer' },
+      },
+    },
+  };
+}
+
+/** Every throttled route without a stricter limit. */
+export const GENERAL_RATE_LIMIT_RESPONSE = tooManyRequests(
+  `Rate limit exceeded: the general limit is ${describeRateLimit(RATE_LIMITS.default)} per client.`,
+);
+
+export const LOGIN_RATE_LIMIT_RESPONSE = tooManyRequests(
+  `Rate limit exceeded: login allows ${describeRateLimit(RATE_LIMITS.login)} per client, and failed attempts count.`,
+);
+
+export const REGISTRATION_RATE_LIMIT_RESPONSE = tooManyRequests(
+  `Rate limit exceeded: this registration route allows ${describeRateLimit(RATE_LIMITS.registration)} per client.`,
+);
+
+export const FEEDBACK_RATE_LIMIT_RESPONSE = tooManyRequests(
+  `Rate limit exceeded: feedback creation allows ${describeRateLimit(RATE_LIMITS.feedback)} per client.`,
+);

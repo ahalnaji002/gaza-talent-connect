@@ -30,10 +30,16 @@ import {
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiParam,
   ApiTags,
+  ApiTooManyRequestsResponse,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
-import { ApiErrorResponseDto, ProjectResponseDto } from '../swagger-responses';
+import {
+  ApiErrorResponseDto,
+  GENERAL_RATE_LIMIT_RESPONSE,
+  ProjectResponseDto,
+} from '../swagger-responses';
 
 interface AuthenticatedRequest extends Request {
   user: {
@@ -50,6 +56,7 @@ interface AuthenticatedRequest extends Request {
 })
 @ApiTags('Projects')
 @ApiBearerAuth('bearer')
+@ApiTooManyRequestsResponse(GENERAL_RATE_LIMIT_RESPONSE)
 export class ProjectsController {
   constructor(private readonly projectsService: ProjectsService) {}
 
@@ -80,6 +87,7 @@ export class ProjectsController {
 
   @Patch(':id')
   @ApiOperation({ summary: 'Update an owned project' })
+  @ApiParam({ name: 'id', format: 'uuid', description: 'Project UUID' })
   @ApiOkResponse({ type: ProjectResponseDto })
   @ApiBadRequestResponse({ type: ApiErrorResponseDto })
   @ApiUnauthorizedResponse({ type: ApiErrorResponseDto })
@@ -99,6 +107,7 @@ export class ProjectsController {
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete an owned project' })
+  @ApiParam({ name: 'id', format: 'uuid', description: 'Project UUID' })
   @ApiNoContentResponse({ description: 'Project deleted; no response body' })
   @ApiBadRequestResponse({ type: ApiErrorResponseDto })
   @ApiUnauthorizedResponse({ type: ApiErrorResponseDto })

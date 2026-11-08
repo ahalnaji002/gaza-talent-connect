@@ -5,11 +5,17 @@ import {
   ApiOkResponse,
   ApiOperation,
   ApiTags,
+  ApiTooManyRequestsResponse,
 } from '@nestjs/swagger';
-import { ApiErrorResponseDto, SkillResponseDto } from '../swagger-responses';
+import {
+  ApiErrorResponseDto,
+  GENERAL_RATE_LIMIT_RESPONSE,
+  SkillResponseDto,
+} from '../swagger-responses';
 
 @Controller('skills')
 @ApiTags('Skills')
+@ApiTooManyRequestsResponse(GENERAL_RATE_LIMIT_RESPONSE)
 export class SkillsController {
   constructor(private readonly skillsService: SkillsService) {}
 

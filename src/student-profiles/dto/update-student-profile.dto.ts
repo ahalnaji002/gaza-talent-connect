@@ -24,6 +24,7 @@ export class UpdateStudentProfileDto {
   fullName?: string;
 
   @ApiPropertyOptional({
+    type: String,
     nullable: true,
     maxLength: 100,
     example: 'Backend Developer',
@@ -41,6 +42,7 @@ export class UpdateStudentProfileDto {
   jobTitle?: string | null;
 
   @ApiPropertyOptional({
+    type: String,
     nullable: true,
     maxLength: 1000,
     example: 'Backend developer',
@@ -50,13 +52,19 @@ export class UpdateStudentProfileDto {
   @MaxLength(1000)
   bio?: string | null;
 
-  @ApiPropertyOptional({ nullable: true, maxLength: 150, example: 'Gaza' })
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    maxLength: 150,
+    example: 'Gaza',
+  })
   @IsOptional()
   @IsString()
   @MaxLength(150)
   location?: string | null;
 
   @ApiPropertyOptional({
+    type: String,
     nullable: true,
     format: 'email',
     maxLength: 255,
@@ -68,6 +76,7 @@ export class UpdateStudentProfileDto {
   contactEmail?: string | null;
 
   @ApiPropertyOptional({
+    type: String,
     nullable: true,
     format: 'uri',
     maxLength: 2048,
@@ -80,6 +89,7 @@ export class UpdateStudentProfileDto {
   githubUrl?: string | null;
 
   @ApiPropertyOptional({
+    type: String,
     nullable: true,
     format: 'uri',
     maxLength: 2048,

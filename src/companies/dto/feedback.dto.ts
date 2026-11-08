@@ -53,13 +53,19 @@ export class UpdateFeedbackDto {
 }
 
 export class FeedbackPageQueryDto {
-  @ApiPropertyOptional({ minimum: 1, default: 1, example: 1 })
+  @ApiPropertyOptional({ type: 'integer', minimum: 1, default: 1, example: 1 })
   @Type(() => Number)
   @IsInt()
   @Min(1)
   page = 1;
 
-  @ApiPropertyOptional({ minimum: 1, maximum: 50, default: 10, example: 10 })
+  @ApiPropertyOptional({
+    type: 'integer',
+    minimum: 1,
+    maximum: 50,
+    default: 10,
+    example: 10,
+  })
   @Type(() => Number)
   @IsInt()
   @Min(1)

@@ -21,6 +21,7 @@ export class UpdateProjectDto {
   title?: string;
 
   @ApiPropertyOptional({
+    type: String,
     nullable: true,
     maxLength: 2000,
     example: 'Updated project summary.',
@@ -31,6 +32,7 @@ export class UpdateProjectDto {
   description?: string | null;
 
   @ApiPropertyOptional({
+    type: String,
     nullable: true,
     format: 'uri',
     description: 'HTTPS URL only.',
@@ -42,6 +44,7 @@ export class UpdateProjectDto {
   githubUrl?: string | null;
 
   @ApiPropertyOptional({
+    type: String,
     nullable: true,
     format: 'uri',
     description: 'HTTP or HTTPS URL.',

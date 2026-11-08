@@ -19,7 +19,9 @@ import {
 import {
   ApiErrorResponseDto,
   CompanyRegisterResponseDto,
+  LOGIN_RATE_LIMIT_RESPONSE,
   LoginResponseDto,
+  REGISTRATION_RATE_LIMIT_RESPONSE,
   RegisterResponseDto,
 } from '../swagger-responses';
 
@@ -31,7 +33,7 @@ export class AuthController {
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
   @Throttle({ default: RATE_LIMITS.registration })
-  @ApiTooManyRequestsResponse({ type: ApiErrorResponseDto })
+  @ApiTooManyRequestsResponse(REGISTRATION_RATE_LIMIT_RESPONSE)
   @ApiOperation({ summary: 'Register a student account and private profile' })
   @ApiCreatedResponse({ type: RegisterResponseDto })
   @ApiBadRequestResponse({ type: ApiErrorResponseDto })
@@ -47,7 +49,7 @@ export class AuthController {
   @Post('register/company')
   @HttpCode(HttpStatus.CREATED)
   @Throttle({ default: RATE_LIMITS.registration })
-  @ApiTooManyRequestsResponse({ type: ApiErrorResponseDto })
+  @ApiTooManyRequestsResponse(REGISTRATION_RATE_LIMIT_RESPONSE)
   @ApiOperation({
     summary: 'Register a company account',
     description:
@@ -67,7 +69,7 @@ export class AuthController {
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: RATE_LIMITS.login })
-  @ApiTooManyRequestsResponse({ type: ApiErrorResponseDto })
+  @ApiTooManyRequestsResponse(LOGIN_RATE_LIMIT_RESPONSE)
   @ApiOperation({
     summary: 'Authenticate a student or company and receive a JWT access token',
   })

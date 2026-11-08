@@ -15,6 +15,7 @@ export class CreateProjectDto {
   title!: string;
 
   @ApiPropertyOptional({
+    type: String,
     nullable: true,
     maxLength: 2000,
     example: 'A portfolio built with NestJS.',
@@ -25,6 +26,7 @@ export class CreateProjectDto {
   description?: string | null;
 
   @ApiPropertyOptional({
+    type: String,
     nullable: true,
     format: 'uri',
     description: 'HTTPS URL only.',
@@ -36,6 +38,7 @@ export class CreateProjectDto {
   githubUrl?: string | null;
 
   @ApiPropertyOptional({
+    type: String,
     nullable: true,
     format: 'uri',
     description: 'HTTP or HTTPS URL.',

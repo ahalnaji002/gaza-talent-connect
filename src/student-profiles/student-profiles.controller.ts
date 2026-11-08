@@ -30,10 +30,12 @@ import {
   ApiParam,
   ApiQuery,
   ApiTags,
+  ApiTooManyRequestsResponse,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import {
   ApiErrorResponseDto,
+  GENERAL_RATE_LIMIT_RESPONSE,
   PublicStudentDetailResponseDto,
   SkillResponseDto,
   StudentDiscoveryResponseDto,
@@ -48,6 +50,7 @@ interface AuthenticatedRequest extends Request {
 
 @Controller('students')
 @ApiTags('Students')
+@ApiTooManyRequestsResponse(GENERAL_RATE_LIMIT_RESPONSE)
 export class StudentProfilesController {
   constructor(
     private readonly studentProfilesService: StudentProfilesService,
@@ -67,14 +70,14 @@ export class StudentProfilesController {
   @ApiQuery({
     name: 'page',
     required: false,
-    type: Number,
+    type: 'integer',
     minimum: 1,
     default: 1,
   })
   @ApiQuery({
     name: 'limit',
     required: false,
-    type: Number,
+    type: 'integer',
     minimum: 1,
     maximum: 50,
     default: 10,

@@ -38,6 +38,8 @@ import { RolesGuard } from '../auth/roles.guard';
 import {
   ApiErrorResponseDto,
   CompanySummaryDto,
+  FEEDBACK_RATE_LIMIT_RESPONSE,
+  GENERAL_RATE_LIMIT_RESPONSE,
   ReceivedFeedbackPageResponseDto,
   SentFeedbackPageResponseDto,
   SentFeedbackResponseDto,
@@ -61,6 +63,7 @@ const companyOnly = {
 @ApiBearerAuth('bearer')
 @ApiUnauthorizedResponse({ type: ApiErrorResponseDto })
 @ApiForbiddenResponse(companyOnly)
+@ApiTooManyRequestsResponse(GENERAL_RATE_LIMIT_RESPONSE)
 @ApiInternalServerErrorResponse({ type: ApiErrorResponseDto })
 export class CompaniesController {
   constructor(private readonly feedbackService: CompanyFeedbackService) {}
@@ -84,13 +87,14 @@ export class CompaniesController {
 @ApiBearerAuth('bearer')
 @ApiUnauthorizedResponse({ type: ApiErrorResponseDto })
 @ApiForbiddenResponse(companyOnly)
+@ApiTooManyRequestsResponse(GENERAL_RATE_LIMIT_RESPONSE)
 @ApiInternalServerErrorResponse({ type: ApiErrorResponseDto })
 export class CompanyFeedbackController {
   constructor(private readonly feedbackService: CompanyFeedbackService) {}
 
   @Post()
   @Throttle({ default: RATE_LIMITS.feedback })
-  @ApiTooManyRequestsResponse({ type: ApiErrorResponseDto })
+  @ApiTooManyRequestsResponse(FEEDBACK_RATE_LIMIT_RESPONSE)
   @ApiOperation({
     summary: 'Write private feedback for a published student profile',
     description:
@@ -168,6 +172,7 @@ export class CompanyFeedbackController {
   type: ApiErrorResponseDto,
   description: 'Only student accounts can use this route',
 })
+@ApiTooManyRequestsResponse(GENERAL_RATE_LIMIT_RESPONSE)
 @ApiInternalServerErrorResponse({ type: ApiErrorResponseDto })
 export class StudentFeedbackController {
   constructor(private readonly feedbackService: CompanyFeedbackService) {}
